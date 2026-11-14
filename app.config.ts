@@ -3,6 +3,8 @@ import "./scripts/load-env.js";
 import { existsSync } from "node:fs";
 import type { ExpoConfig } from "expo/config";
 
+const GOOGLE_ANDROID_REDIRECT_SCHEME = "com.googleusercontent.apps.470980545863";
+
 const PACKAGE_ID = "com.conectabarra.app"; // troque se tiver um domínio próprio (ex.: br.com.suaempresa.conectabarra)
 // Valores padrão de PRODUÇÃO. Importante: `eas update` (OTA) roda na sua máquina e NÃO lê o `env` do eas.json.
 // Sem estes padrões, uma atualização OTA publicada sem .env sairia sem `updates.url` e com a API apontando
@@ -17,10 +19,10 @@ const config: ExpoConfig = {
   name: "Conecta Barra",
   slug: "conecta-barra",
   owner: "conectabarras-team",
-  version: "1.0.5",
+  version: "1.0.6",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
-  scheme: "conectabarra",
+  scheme: ["conectabarra", GOOGLE_ANDROID_REDIRECT_SCHEME],
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   // Atualizações OTA reais (EAS Update). Ficam ativas assim que o projeto EAS for criado (eas init).
@@ -46,6 +48,7 @@ const config: ExpoConfig = {
     permissions: ["POST_NOTIFICATIONS", "USE_BIOMETRIC", "USE_FINGERPRINT"],
     // O app não grava áudio nem desenha sobre outros apps; remove permissões desnecessárias herdadas de bibliotecas.
     blockedPermissions: ["android.permission.RECORD_AUDIO", "android.permission.SYSTEM_ALERT_WINDOW"],
+    intentFilters: [{ action: "VIEW", autoVerify: false, category: ["BROWSABLE", "DEFAULT"], data: [{ scheme: GOOGLE_ANDROID_REDIRECT_SCHEME, path: "/oauthredirect" }] }],
     // Sem "cleartext": apenas HTTPS/WSS em produção.
   },
   web: { bundler: "metro", output: "static", favicon: "./assets/images/favicon.png" },

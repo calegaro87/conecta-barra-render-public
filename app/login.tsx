@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { TextInput } from "@/components/text-input";
 import { Pressable } from "@/components/pressable";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -21,8 +21,9 @@ import { SelectionField } from "@/components/selection-field";
 import { BRAND } from "@/constants/brand";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as WebBrowser from "expo-web-browser";
+import { makeRedirectUri } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
-import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from "@/constants/oauth";
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_ANDROID_REDIRECT_URI, GOOGLE_WEB_CLIENT_ID } from "@/constants/oauth";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -57,10 +58,13 @@ export default function LoginScreen() {
   const [verificationUsername, setVerificationUsername] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationVisible, setVerificationVisible] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const googleRedirectUri = makeRedirectUri({ native: GOOGLE_ANDROID_REDIRECT_URI });
   const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
     scopes: ["openid", "profile", "email"],
+    redirectUri: googleRedirectUri,
   });
   const persistSessionAndOpenHome = async (result: { user: any; token: string }, message: string, profileComplete = true) => {
     if (rememberMe) await AsyncStorage.multiSet([["dm_saved_username", username.trim()], ["dm_remember_me", "true"]]);
@@ -146,6 +150,7 @@ export default function LoginScreen() {
     if (normalizedUsername.length < 4) return Alert.alert("Informe o usuário", "O nome de usuário precisa ter pelo menos 4 caracteres.");
     if (password.length < 8) return Alert.alert("Informe a senha", "A senha precisa ter pelo menos 8 caracteres.");
     if (registering) {
+      if (!privacyAccepted) return Alert.alert("Aceite a política de privacidade", "Leia e aceite a política de privacidade para criar seu acesso.");
       if (name.trim().length < 3 || !isAddressComplete(addr)) return Alert.alert("Complete seus dados", "Informe seu nome e o endereço completo: CEP, rua, número e bairro.");
       if (phone.trim().length < 8) return Alert.alert("Informe seu telefone", "O telefone é necessário para o cadastro.");
       const normalizedEmail = email.trim().toLowerCase();
@@ -210,7 +215,7 @@ export default function LoginScreen() {
 
             {!registering && (
               <Pressable accessibilityRole="button" disabled={!googleRequest || busy} onPress={() => void promptGoogle()} style={({ pressed }) => [ns.googleButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && { opacity: 0.75 }]}>
-                <Text style={ns.googleMark}>G</Text>
+                <Image source={require("@/assets/images/google-g.png")} accessibilityLabel="Logotipo Google" style={ns.googleMark} />
                 <Text style={[ns.googleLabel, { color: colors.foreground }]}>{googleLogin.isPending ? "Entrando com Google…" : "Continuar com Google"}</Text>
               </Pressable>
             )}
@@ -240,6 +245,10 @@ export default function LoginScreen() {
                 placeholder="Escolha uma opção"
                 accessibilityLabel="Selecionar sexo"
               />
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: privacyAccepted }} onPress={() => setPrivacyAccepted((value) => !value)} style={ns.privacyRow}>
+                <View style={[ns.checkbox, { borderColor: colors.primary, backgroundColor: privacyAccepted ? colors.primary : "transparent" }]}>{privacyAccepted && <Text style={ns.checkmark}>✓</Text>}</View>
+                <Text style={[ns.privacyText, { color: colors.foreground }]}>Li e aceito a política de privacidade e o tratamento dos dados para autenticação, avisos e solicitações.</Text>
+              </Pressable>
             </>)}
 
             {!registering && (
@@ -318,12 +327,15 @@ const ns = StyleSheet.create({
   bioButton: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1.5, borderRadius: 22, padding: 14, marginBottom: 6, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   bioTitle: { fontSize: 16, fontWeight: "900" }, bioHint: { fontSize: 12 },
   googleButton: { minHeight: 54, borderWidth: 1, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 4 },
-  googleMark: { color: "#4285F4", fontSize: 22, fontWeight: "900" },
+  googleMark: { width: 22, height: 22 },
   googleLabel: { fontSize: 15, fontWeight: "800" },
   sexRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   sexChip: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
   rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
   checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  checkmark: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  privacyRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 12 },
+  privacyText: { flex: 1, fontSize: 12, lineHeight: 18 },
   submitWrap: { marginTop: 16, borderRadius: 18, overflow: "hidden" },
   submitGradient: { minHeight: 56, alignItems: "center", justifyContent: "center" },
   submitLabel: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },

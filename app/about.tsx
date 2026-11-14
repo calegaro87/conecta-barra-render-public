@@ -45,8 +45,10 @@ export default function AboutScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>Privacidade e segurança</Text>
-          <Text style={[styles.cardText, { color: colors.muted }]}>As informações do cadastro são usadas para autenticar o acesso, organizar solicitações e permitir que a gestão responda aos moradores.</Text>
-          <Text style={[styles.cardText, { color: colors.muted }]}>Não compartilhe sua senha. Em caso de dúvida sobre seus dados, procure diretamente a gestão pelos canais oficiais.</Text>
+          <Text style={[styles.cardText, { color: colors.muted }]}>As informações do cadastro são usadas para autenticar o acesso, organizar solicitações, direcionar avisos do bairro e permitir que a gestão responda aos moradores, sempre no limite dessas finalidades.</Text>
+          <Text style={[styles.cardText, { color: colors.muted }]}>O login Google compartilha com o Conecta Barra apenas os dados autorizados pelo provedor, como identificador, nome e e-mail. O aplicativo não recebe sua senha Google.</Text>
+          <Text style={[styles.cardText, { color: colors.muted }]}>Você pode solicitar confirmação, correção, informação sobre o uso e exclusão dos seus dados pelos canais oficiais da Prefeitura. A exclusão pode ficar limitada quando houver obrigação legal ou necessidade de preservar registros de segurança.</Text>
+          <Text style={[styles.cardText, { color: colors.muted }]}>O Conecta Barra usa HTTPS/WSS em trânsito, banco e armazenamento gerenciados com proteção em repouso e SecureStore no aparelho para tokens. Não compartilhe sua senha. Para exercer seus direitos ou falar sobre privacidade, procure a gestão pelos canais oficiais exibidos nesta tela.</Text>
         </View>
 
         <Text style={[styles.version, { color: colors.muted }]}>Conecta Barra • Seu bairro conectado à Prefeitura</Text>

@@ -116,7 +116,7 @@ export async function getUserInfo(): Promise<User | null> {
       return null;
     }
     const user = JSON.parse(info);
-    console.log("[Auth] User info retrieved:", user);
+    console.log("[Auth] User info retrieved: present");
     return user;
   } catch (error) {
     console.error("[Auth] Failed to get user info:", error);
@@ -126,7 +126,7 @@ export async function getUserInfo(): Promise<User | null> {
 
 export async function setUserInfo(user: User): Promise<void> {
   try {
-    console.log("[Auth] Setting user info...", user);
+    console.log("[Auth] Setting user info...");
 
     if (Platform.OS === "web") {
       // Use localStorage for web
