@@ -1,0 +1,239 @@
+CONECTA BARRA 1.0.4 — AUDITORIA DE CONFIGURAÇÃO E CORREÇÕES
+=============================================================
+
+Escopo: tempo real entre aparelhos/redes (WebSocket), notificações push (Expo/FCM),
+atualizações OTA, banco de dados e implantação (Render / Docker).
+
+Como esta análise foi feita: leitura do código-fonte do zip. Não consegui rodar o
+servidor nem o app aqui (sem rede e sem as dependências instaladas), então NÃO testei
+contra o Render, o Expo ou um aparelho. Só validei a sintaxe dos arquivos alterados.
+Os testes da seção 6 são obrigatórios antes de considerar tudo resolvido.
+
+Aviso honesto: "sem qualquer interrupção, para sempre" não existe em nenhum sistema.
+O que dá para garantir é: servidor sempre ligado, reconexão automática e rápida,
+push como reserva quando o app está fechado, e monitoramento para você ser avisado
+de falhas. É isso que as correções abaixo entregam.
+
+
+1. PROBLEMAS ENCONTRADOS
+------------------------
+
+A) CRÍTICOS (impediam funcionamento contínuo)
+
+ 1. Render no plano "free" (render.yaml).
+    Hiberna após ~15 min sem requisições HTTP, derruba todos os WebSockets e atrasa/
+    perde o disparo de push. É a causa mais provável de "às vezes funciona, às vezes não".
+    -> CORRIGIDO: plan: starter (sempre ligado), numInstances: 1.
+    -> AÇÃO SUA: o plano starter é pago; você precisa aprovar no painel do Render.
+
+ 2. Atualização OTA podia quebrar o app de todo mundo (app.config.ts / constants/oauth.ts).
+    O comando "eas update" roda na sua máquina e NÃO lê o "env" do eas.json. Sem um
+    arquivo .env local, a OTA saía sem a URL de atualização e com a API apontando para
+    http://10.0.2.2:3000 (endereço de emulador). Todos os aparelhos que baixassem essa
+    atualização perderiam a conexão com o servidor.
+    -> CORRIGIDO: valores padrão de produção em app.config.ts (API e projectId do EAS)
+       e, em build de release, o app nunca usa mais 10.0.2.2.
+
+ 3. Pasta android/ do zip estava desatualizada e perigosa.
+    Tinha expo-updates DESLIGADO (ENABLED=false), sem plugin do Google Services (FCM),
+    versionCode 1, release assinado com a chave de debug e permissões desnecessárias
+    (RECORD_AUDIO, SYSTEM_ALERT_WINDOW). Ela está no .gitignore (é gerada), mas se alguém
+    compilar com ela (gradlew direto), o push e a OTA não funcionam.
+    -> CORRIGIDO: pasta removida do pacote (é regenerada por "expo prebuild" / EAS) e as
+       permissões desnecessárias bloqueadas no app.config.ts.
+
+ 4. Cliente WebSocket não detectava conexão "morta" (lib/realtime.ts).
+    Ao trocar Wi-Fi <-> 4G ou voltar do segundo plano, o socket pode ficar aberto no
+    celular mas sem existir de fato; o selo ficava "Ao vivo" sem receber nada.
+    -> CORRIGIDO: servidor envia batimento (JSON "ping") a cada 25 s; o app responde e
+       tem um "watchdog" (70 s sem mensagens = reconecta). Ao voltar ao app, se ficou
+       quieto >35 s, reconecta. Reconexão só na troca real de rede (antes derrubava até
+       conexão saudável). Trava contra dois sockets simultâneos. Servidor reiniciando
+       (código 1012) = reconecta logo.
+
+ 5. Token de push não era renovado (components/push-notification-bridge.tsx).
+    Se o FCM trocasse o token (reinstalação, dados limpos, rotação), o app não avisava
+    o servidor e as notificações simplesmente paravam. E se o servidor apagava um token
+    inválido, o aparelho só voltava a se registrar após reinstalar/reabrir.
+    -> CORRIGIDO: escuta a troca de token (addPushTokenListener) e re-registra ao menos
+       a cada 12 h quando o app abre.
+
+B) IMPORTANTES
+
+ 6. Keep-alive do Node (server/_core/index.ts).
+    Padrão de 5 s é menor que o dos proxies (Render/Caddy ~60 s): gera erros 502
+    intermitentes. -> keepAliveTimeout 65 s / headersTimeout 66 s.
+
+ 7. Servidor derrubável por erro solto (server/_core/index.ts).
+    Qualquer promessa rejeitada sem tratamento encerrava o processo (e todos os WebSockets).
+    -> handlers de unhandledRejection/uncaughtException + encerramento limpo (SIGTERM)
+       que avisa os aparelhos para reconectar na hora durante deploys.
+
+ 8. Conexões do banco "meio mortas" (server/db.ts).
+    Sem keep-alive TCP, TiDB/Render/NAT fecham sockets ociosos em silêncio e a primeira
+    consulta depois falha (ECONNRESET). -> enableKeepAlive, connectTimeout, tratamento de erro.
+
+ 9. Envio de push lento e sem timeout (server/push.ts).
+    Era sequencial (1 token por vez) e sem timeout: com centenas de moradores o último
+    recebia minutos depois, e uma conexão travada pendurava tudo.
+    -> 8 envios em paralelo, timeout de 15 s e até 3 tentativas (429/5xx/rede).
+
+10. Toque em notificação com o app fechado abria a tela errada (push-notification-bridge).
+    O papel (admin/morador) ainda não tinha carregado. -> espera a sessão carregar.
+
+11. Logout não removia o token de push (server/routers.ts + telas).
+    Quem saía da conta continuava recebendo as notificações dela naquele aparelho. Além
+    disso o app disparava o logout e apagava o token de sessão antes da requisição sair.
+    -> auth.logout aceita pushToken, remove do banco; o app aguarda (até 3 s) antes de sair.
+
+12. CORS aberto demais (server/_core/index.ts).
+    Refletia qualquer origem COM credenciais. -> em produção só aceita origens listadas
+    em ALLOWED_ORIGINS. O app Android não envia "Origin", então não é afetado.
+
+13. Cookie de sessão com Domain=".onrender.com" (server/_core/cookies.ts).
+    É sufixo público; navegadores rejeitam. (Não afeta o app Android, que usa Bearer.)
+    -> Domain só se COOKIE_DOMAIN estiver definido.
+
+14. Logs imprimiam parte do token de sessão (lib/_core/auth.ts, hooks/use-auth.ts). Removido.
+
+15. Texto de diagnóstico citava o projeto Firebase "conecta-notificacoes", mas o
+    google-services.json é do projeto "conecta-barra-c2648". Texto corrigido (ver 3.2).
+
+16. Monitoramento: novo /api/health/db (testa o banco) além do /api/health.
+    Docker: HEALTHCHECK; Caddy: health check e WebSocket sem buffer.
+
+
+2. O QUE EU NÃO CONSIGO VERIFICAR (precisa de você)
+---------------------------------------------------
+ - Se a chave FCM V1 cadastrada no EAS pertence ao projeto Firebase "conecta-barra-c2648"
+   (project_number 684724757152), o mesmo do google-services.json. Se for de outro
+   projeto, o push falha com MismatchSenderId / InvalidCredentials mesmo com tudo certo
+   no código.
+ - Se as variáveis do Render estão preenchidas (DATABASE_URL, JWT_SECRET >= 32 caracteres,
+   ADMIN_*, EXPO_ACCESS_TOKEN).
+ - O README diz que o upload de fotos autenticado de ponta a ponta ainda não foi validado.
+ - Celulares com economia de bateria agressiva (Xiaomi, Huawei, Samsung "dormindo")
+   podem atrasar push. Peça aos usuários: Configurações > Apps > Conecta Barra > Bateria
+   > "Sem restrições".
+ - Limitação do Android/iOS: WebSocket NÃO funciona com o app fechado/em segundo plano
+   por muito tempo. Nesse caso quem avisa é o PUSH; ao abrir o app, ele reconecta e
+   recarrega tudo sozinho (evento "ready").
+
+
+3. PASSO A PASSO PARA APLICAR
+-----------------------------
+
+3.1  Servidor (Render)  — faça primeiro; já melhora os apps JÁ instalados
+  1. Substitua o código do seu repositório (GitHub/GitLab) pelo conteúdo da pasta
+     conecta-barra deste pacote (NÃO suba .env nem chaves). Faça commit e push.
+  2. No painel do Render > conecta-barra-api > Settings > Instance Type: escolha
+     "Starter" (ou superior). (O render.yaml já pede isso; se o serviço foi criado
+     manualmente, altere no painel.)
+  3. Em Environment confira/crie:
+       NODE_ENV=production            DATABASE_SSL=true
+       DATABASE_URL=...(TiDB)         JWT_SECRET=(>=32 caracteres; NÃO troque se já em uso,
+                                       senão todos serão deslogados)
+       ADMIN_USERNAME / ADMIN_PASSWORD
+       EXPO_ACCESS_TOKEN=...          (expo.dev > Account > Access tokens)
+       DB_CONNECTION_LIMIT=5          ALLOWED_ORIGINS= (vazio se não usa versão web)
+       BREVO_API_KEY / BREVO_SENDER_EMAIL (e-mails)
+  4. Deploy (automático após o push, ou "Manual Deploy > Deploy latest commit").
+  5. Teste: abra https://conecta-barra-api.onrender.com/api/health  -> {"ok":true,...}
+     e  /api/health/db  -> {"ok":true,"db":true}.
+  6. Monitoramento: no UptimeRobot (ou similar) crie um monitor HTTPS em /api/health/db
+     a cada 5 min com alerta por e-mail. Isso avisa você se algo cair.
+
+  Alternativa em servidor próprio (Docker):
+     cp .env.example .env   (preencha; JWT_SECRET: openssl rand -hex 32)
+     docker compose up -d --build
+     docker compose run --rm api npm run db:push
+     curl https://SEU-DOMINIO/api/health/db
+
+3.2  Push (Firebase / Expo) — conferir uma vez
+  1. Console Firebase > projeto conecta-barra-c2648 > Configurações > Contas de serviço
+     > gerar nova chave privada (apenas se precisar trocar).
+  2. Terminal, na pasta do projeto:  npx eas-cli login
+                                     npx eas-cli credentials   -> Android -> (perfil) ->
+     Google Service Account Key for FCM V1 -> envie/confirme a chave DO MESMO projeto.
+  3. Confirme que google-services.json (raiz) é do mesmo projeto (project_id).
+  4. Nunca coloque a chave privada no Git.
+
+3.3  App Android (novo APK/AAB — versão 1.0.4)
+  É necessário um novo build porque mudaram permissões nativas (blockedPermissions)
+  e a versão (runtime das OTAs passa a ser 1.0.4).
+
+  Pré-requisitos: Node 20+ (recomendado 22), conta Expo, eas-cli.
+     npm install -g eas-cli
+     eas login
+  Na pasta do projeto:
+     npm ci                      (ou npm install)
+     npm run check               (checagem de tipos; não consegui rodá-la aqui, então se aparecer algum erro, envie a mensagem)
+
+  A) APK para testes (instalação direta):
+     npm run build:apk           (= eas build --platform android --profile preview)
+     Baixe o .apk do link que o EAS mostrar e instale.
+
+  B) Pacote para a Play Store (AAB):
+     npm run build:aab           (= eas build --platform android --profile production)
+     Envie com:  eas submit --platform android --profile production
+
+  C) Compilação local (sem EAS) — só se tiver Android SDK/JDK 17:
+     npm run build:apk:local
+     (gera a pasta android/ nova e o APK em android/app/build/outputs/apk/release/.
+      ATENÇÃO: o release local sai assinado com chave de debug; para publicar use o EAS
+      ou configure sua keystore.)
+
+  NÃO use a pasta android/ antiga; ela foi removida de propósito.
+
+3.4  Atualizações OTA depois do APK 1.0.4 instalado
+  Para correções só de JavaScript (sem mudar nativo/versão):
+     npm run update:ota -- "descrição da mudança"
+  Só chegam a aparelhos com o mesmo número de versão (1.0.4). Se mudar versão/
+  dependência nativa, gere novo build.
+
+
+4. RESUMO DOS ARQUIVOS ALTERADOS
+--------------------------------
+ server/_core/index.ts   keep-alive, CORS, health/db, erros globais, shutdown limpo
+ server/_core/env.ts     ALLOWED_ORIGINS, COOKIE_DOMAIN
+ server/_core/cookies.ts domínio do cookie
+ server/realtime.ts      batimento JSON, limite por usuário, close 1012, robustez
+ server/db.ts            keep-alive do pool MySQL
+ server/push.ts          envio paralelo, timeout e retentativas
+ server/routers.ts       auth.logout remove token de push
+ lib/realtime.ts         watchdog, reconexão inteligente, anti-duplicidade
+ lib/push-token.ts       (novo) guarda o token atual do aparelho
+ lib/push-diagnostics.ts texto de diagnóstico FCM
+ lib/_core/auth.ts, hooks/use-auth.ts  sem token nos logs
+ components/push-notification-bridge.tsx  renovação de token, abertura correta
+ app/admin.tsx, app/(tabs)/index.tsx      logout aguarda remoção do token
+ app.config.ts           padrões de produção, permissões, versão 1.0.4
+ constants/oauth.ts      nunca usa localhost em release
+ render.yaml, Dockerfile, docker-compose.yml, deploy/Caddyfile, .env.example, README.md
+ android/                REMOVIDA (gerada automaticamente)
+
+
+5. OBSERVAÇÕES DE SEGURANÇA
+---------------------------
+ - A chave de API em google-services.json é pública por natureza (vai dentro do APK),
+   mas restrinja-a no Google Cloud Console (Credenciais > restrição por app Android
+   com.conectabarra.app e SHA-1 do EAS).
+ - Troque ADMIN_PASSWORD por uma senha forte e exclusiva.
+
+
+6. TESTES OBRIGATÓRIOS DEPOIS DE APLICAR
+----------------------------------------
+ 1. /api/health e /api/health/db respondendo em < 1 s, mesmo após 30 min sem uso
+    (prova que o servidor não hiberna).
+ 2. Dois aparelhos em redes diferentes (um no Wi-Fi, outro no 4G): crie um comunicado
+    no painel admin; o outro aparelho deve atualizar em ~1-2 s com o selo "Ao vivo".
+ 3. Troque o Wi-Fi para 4G no aparelho 1 com o app aberto: o selo deve voltar a "Ao vivo"
+    em poucos segundos sem reabrir o app.
+ 4. Feche totalmente o app, envie um comunicado: a notificação push deve chegar; tocar
+    nela deve abrir a tela correta (como admin e como morador).
+ 5. Painel admin > Push de teste: deve responder sucesso (se vier erro, o texto agora
+    indica a causa: InvalidCredentials / MismatchSenderId = ver 3.2).
+ 6. Sair da conta num aparelho e enviar aviso para aquele usuário: o aparelho NÃO deve
+    mais receber.
+ 7. Reinicie o serviço no Render com um aparelho conectado: ele deve reconectar sozinho
+    em poucos segundos.
