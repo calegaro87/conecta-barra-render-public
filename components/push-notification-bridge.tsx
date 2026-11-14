@@ -140,7 +140,7 @@ export function PushNotificationBridge() {
     const register = async () => {
       if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync("conecta-alerts", {
-          description: "Avisos da Prefeitura, comunicados do seu bairro e andamento das suas solicitações",
+          description: "Avisos locais, comunicados do seu bairro e andamento das suas solicitações",
           name: "Avisos do Conecta Barra",
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 200, 250],

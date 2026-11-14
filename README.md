@@ -47,8 +47,10 @@ O monitor ainda depende de autenticação na conta UptimeRobot. Configure um mon
 
 ```bash
 cp .env.example .env          # defina JWT_SECRET com `openssl rand -hex 32`
+export DATA_ENCRYPTION_KEY="$(openssl rand -hex 32)"  # nunca versione esta chave
 docker compose up -d --build  # MySQL + API + HTTPS automático (Caddy)
 docker compose run --rm api npm run db:push
+docker compose run --rm api npm run db:encrypt
 curl https://api.seu-dominio.com.br/api/health
 ```
 

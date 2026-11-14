@@ -12,12 +12,17 @@ const jwt = required("JWT_SECRET", isProduction ? undefined : "dev-only-secret-c
 if (isProduction && jwt.length < 32) {
   throw new Error("JWT_SECRET precisa ter pelo menos 32 caracteres em produção.");
 }
+const dataEncryptionKey = process.env.DATA_ENCRYPTION_KEY?.trim() ?? "";
+if (isProduction && !dataEncryptionKey) {
+  throw new Error("DATA_ENCRYPTION_KEY precisa ser configurada em produção antes de iniciar a API.");
+}
 
 const publicUrl = process.env.PUBLIC_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim() || "";
 
 export const ENV = {
   isProduction,
   cookieSecret: jwt,
+  dataEncryptionKey,
   databaseUrl: required("DATABASE_URL"),
   databaseSsl: process.env.DATABASE_SSL?.trim().toLowerCase() === "true",
   /** URL pública do backend. No Render, usa automaticamente RENDER_EXTERNAL_URL. */

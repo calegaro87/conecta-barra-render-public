@@ -10,14 +10,14 @@ export function AppMark({ size = 64, radius }: { size?: number; radius?: number 
   return <Image source={appIcon} accessibilityLabel="Logotipo Conecta Barra" style={{ width: size, height: size, borderRadius: radius ?? size * 0.26 }} />;
 }
 
-/** Selo institucional: logotipo da Prefeitura + nome, para cabeçalhos e rodapés. */
+/** Selo de comunicação local para cabeçalhos e rodapés. */
 export function PrefeituraBadge({ light = false, compact = false, style }: { light?: boolean; compact?: boolean; style?: ViewStyle }) {
   const color = light ? "#FFFFFF" : BRAND.navy;
   return (
-    <View style={[styles.row, style]} accessibilityLabel={OFFICIAL_CONTACT.name}>
+    <View style={[styles.row, style]} accessibilityLabel="Comunicação local">
       <Image source={prefeituraLogo} resizeMode="contain" style={[styles.logo, compact && { width: 30, height: 30 }, light && styles.logoLight]} />
       <View>
-        <Text style={[styles.small, { color, opacity: 0.8 }]}>Prefeitura Municipal de</Text>
+        <Text style={[styles.small, { color, opacity: 0.8 }]}>Comunicação local de</Text>
         <Text style={[styles.big, { color }]}>Barra do Piraí</Text>
       </View>
     </View>

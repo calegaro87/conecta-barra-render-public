@@ -51,7 +51,7 @@ export default function AnnouncementsScreen() {
 
   return (
     <ScreenContainer className="px-0 pt-0" edges={["left", "right", "bottom"]}>
-<PageHeader kicker="MURAL" title="Comunicados" subtitle="Avisos da Prefeitura e do seu bairro, em tempo real." />
+<PageHeader kicker="MURAL" title="Comunicados" subtitle="Avisos locais e do seu bairro, em tempo real." />
 <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 14 }}>
       <View style={[styles.syncHint, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.syncHintText, { color: colors.muted }]}>{announcements.dataUpdatedAt ? `Atualizado às ${new Date(announcements.dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Sincronizando comunicados…"}</Text><Pressable accessibilityRole="button" accessibilityLabel="Atualizar comunicados" onPress={() => void announcements.refetch()} disabled={announcements.isFetching} style={({ pressed }) => [styles.syncButton, { borderColor: colors.primary }, pressed && styles.pressed, announcements.isFetching && styles.disabled]}><Text style={[styles.syncButtonText, { color: colors.primary }]}>{announcements.isFetching ? "…" : "Atualizar"}</Text></Pressable></View>
       {feedback && <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: colors.success, backgroundColor: colors.success + "14", borderColor: colors.success + "55" }]}>{feedback}</Text>}

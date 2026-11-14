@@ -12,7 +12,7 @@ type IconName = React.ComponentProps<typeof IconSymbol>["name"];
 const ICONS: Record<string, { icon: IconName; label: string }> = {
   index: { icon: "house.fill", label: "Início" },
   requests: { icon: "list.bullet.rectangle.fill", label: "Pedidos" },
-  portal: { icon: "building.2.fill", label: "Prefeitura" },
+  portal: { icon: "building.2.fill", label: "Portal local" },
   notifications: { icon: "bell.fill", label: "Avisos" },
   profile: { icon: "person.crop.circle.fill", label: "Conta" },
 };

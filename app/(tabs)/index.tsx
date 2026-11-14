@@ -67,7 +67,7 @@ export default function HomeScreen() {
             <LiveBadge />
           </View>
           <Text style={styles.hello}>{authed ? `Olá, ${firstName}!` : "Bem-vindo!"}</Text>
-          <Text style={styles.helloSub}>{authed ? (bairro ? `Você está conectado ao bairro ${bairro}.` : isAdmin ? "Painel de gestão disponível." : "Complete seu endereço para receber avisos do bairro.") : "Entre para acompanhar sua rua e a Prefeitura."}</Text>
+          <Text style={styles.helloSub}>{authed ? (bairro ? `Você está conectado ao bairro ${bairro}.` : isAdmin ? "Painel de gestão disponível." : "Complete seu endereço para receber avisos do bairro.") : "Entre para acompanhar sua rua e os avisos locais."}</Text>
           <LiveDateTime light style={styles.liveDateTime} />
           <View style={styles.headerActions}>
             {authed ? (
@@ -129,7 +129,7 @@ export default function HomeScreen() {
           )}
 
           <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Canais oficiais da Prefeitura</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Canais oficiais locais</Text>
             <View style={styles.channels}>
               {([
                 { label: "Portal", url: social.data?.website, brand: null },

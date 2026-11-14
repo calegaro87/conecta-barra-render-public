@@ -27,6 +27,7 @@ import {
 } from "../drizzle/schema";
 import { SEED_NEIGHBORHOODS, normalizeName } from "../shared/neighborhoods";
 import { ENV } from "./_core/env";
+import { openFields, sealFields } from "./_core/field-encryption";
 
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -35,6 +36,15 @@ let _pool: ReturnType<typeof createPool> | null = null;
 function getInsertId(result: unknown) {
   const header = Array.isArray(result) ? result[0] : result;
   return Number((header as { insertId?: number } | undefined)?.insertId ?? 0);
+}
+
+function decryptFields<T extends { encryptedData?: string | null }>(row: T | undefined): T | undefined {
+  if (!row?.encryptedData) return row;
+  return { ...row, ...openFields(row.encryptedData), encryptedData: row.encryptedData } as T;
+}
+
+function encryptedPayload(row: Record<string, unknown>, fields: string[]) {
+  return sealFields(Object.fromEntries(fields.map((field) => [field, row[field] as string | null | undefined])));
 }
 
 export async function getDb() {
@@ -76,7 +86,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
   if (!db) return;
-  const values: InsertUser = { openId: user.openId, lastSignedIn: user.lastSignedIn ?? new Date() };
+  const existingRows = await db.select().from(users).where(eq(users.openId, user.openId)).limit(1);
+  const existing = decryptFields(existingRows[0]);
+  const values: InsertUser = { openId: user.openId, lastSignedIn: user.lastSignedIn ?? new Date(), encryptedData: sealFields({ name: user.name ?? existing?.name, email: user.email ?? existing?.email, avatarUrl: user.avatarUrl ?? existing?.avatarUrl }) };
   const updateSet: Record<string, unknown> = { lastSignedIn: user.lastSignedIn ?? new Date() };
   for (const field of ["name", "avatarUrl", "email", "loginMethod"] as const) {
     if (user[field] !== undefined) {
@@ -92,42 +104,45 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     values.role = user.role ?? "admin";
     updateSet.role = values.role;
   }
+  updateSet.encryptedData = values.encryptedData;
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function updateUserAvatar(userId: number, avatarUrl: string | null) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
-  await database.update(users).set({ avatarUrl }).where(eq(users.id, userId));
+  const current = await database.select().from(users).where(eq(users.id, userId)).limit(1);
+  const existing = decryptFields(current[0]);
+  await database.update(users).set({ avatarUrl, encryptedData: encryptedPayload({ name: existing?.name, email: existing?.email, avatarUrl }, ["name", "email", "avatarUrl"]) }).where(eq(users.id, userId));
   const updated = await database.select().from(users).where(eq(users.id, userId)).limit(1);
-  return updated[0];
+  return decryptFields(updated[0]);
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
+  return decryptFields(result[0]);
 }
 
 export async function getUserById(userId: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  return result[0];
+  return decryptFields(result[0]);
 }
 
 export async function getUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result[0];
+  return decryptFields(result[0]);
 }
 
 export async function createRequest(data: typeof requests.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(requests).values(data);
+  const result = await db.insert(requests).values({ ...data, encryptedData: sealFields({ description: data.description, fullAddress: data.fullAddress, cep: data.cep, neighborhood: data.neighborhood, referencePoint: data.referencePoint, photoUrl: data.photoUrl, adminMessage: data.adminMessage }) });
   const insertId = getInsertId(result);
   if (insertId > 0) return insertId;
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -144,7 +159,8 @@ export async function createRequest(data: typeof requests.$inferInsert) {
 export async function listUserRequests(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(requests).where(eq(requests.userId, userId)).orderBy(desc(requests.createdAt));
+  const rows = await db.select().from(requests).where(eq(requests.userId, userId)).orderBy(desc(requests.createdAt));
+  return rows.map((row) => decryptFields(row)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function listUserRequestUpdates(userId: number) {
@@ -217,8 +233,11 @@ export async function deleteRequests(ids: number[]) {
 export async function updateOwnRequest(userId: number, id: number, data: { category: typeof requests.category.enumValues[number]; description: string; fullAddress: string; referencePoint?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(requests).set(data).where(and(eq(requests.id, id), eq(requests.userId, userId)));
-  return db.select().from(requests).where(and(eq(requests.id, id), eq(requests.userId, userId))).limit(1);
+  const current = await db.select().from(requests).where(and(eq(requests.id, id), eq(requests.userId, userId))).limit(1);
+  const existing = decryptFields(current[0]);
+  await db.update(requests).set({ ...data, encryptedData: encryptedPayload({ description: data.description, fullAddress: data.fullAddress, cep: existing?.cep, neighborhood: existing?.neighborhood, referencePoint: data.referencePoint, photoUrl: existing?.photoUrl, adminMessage: existing?.adminMessage }, ["description", "fullAddress", "cep", "neighborhood", "referencePoint", "photoUrl", "adminMessage"]) }).where(and(eq(requests.id, id), eq(requests.userId, userId)));
+  const updated = await db.select().from(requests).where(and(eq(requests.id, id), eq(requests.userId, userId))).limit(1);
+  return updated.map((row) => decryptFields(row)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function markWaterShortageAttended(id: number, attended: boolean) {
@@ -227,7 +246,9 @@ export async function markWaterShortageAttended(id: number, attended: boolean) {
   const request = await database.select({ userId: requests.userId }).from(requests).where(and(eq(requests.id, id), eq(requests.category, "water_shortage"))).limit(1);
   if (!request[0]) throw new Error("Request not found");
   const status: typeof requests.status.enumValues[number] = attended ? "completed" : "received";
-  await database.update(requests).set({ waterAttendedAt: attended ? new Date() : null, status }).where(and(eq(requests.id, id), eq(requests.category, "water_shortage")));
+  const current = await database.select().from(requests).where(and(eq(requests.id, id), eq(requests.category, "water_shortage"))).limit(1);
+  const existing = decryptFields(current[0]);
+  await database.update(requests).set({ waterAttendedAt: attended ? new Date() : null, status, encryptedData: encryptedPayload({ description: existing?.description, fullAddress: existing?.fullAddress, cep: existing?.cep, neighborhood: existing?.neighborhood, referencePoint: existing?.referencePoint, photoUrl: existing?.photoUrl, adminMessage: existing?.adminMessage }, ["description", "fullAddress", "cep", "neighborhood", "referencePoint", "photoUrl", "adminMessage"]) }).where(and(eq(requests.id, id), eq(requests.category, "water_shortage")));
   return { userId: request[0].userId, requestId: id, status };
 }
 
@@ -236,8 +257,10 @@ export async function updateRequestStatus(data: { id: number; adminId: number; s
   if (!db) throw new Error("Database not available");
   const request = await db.select({ userId: requests.userId }).from(requests).where(eq(requests.id, data.id)).limit(1);
   if (!request[0]) throw new Error("Request not found");
-  await db.update(requests).set({ status: data.status, adminMessage: data.message ?? null }).where(eq(requests.id, data.id));
-  await db.insert(requestUpdates).values({ requestId: data.id, adminId: data.adminId, status: data.status, message: data.message ?? null });
+  const current = await db.select().from(requests).where(eq(requests.id, data.id)).limit(1);
+  const existing = decryptFields(current[0]);
+  await db.update(requests).set({ status: data.status, adminMessage: data.message ?? null, encryptedData: encryptedPayload({ description: existing?.description, fullAddress: existing?.fullAddress, cep: existing?.cep, neighborhood: existing?.neighborhood, referencePoint: existing?.referencePoint, photoUrl: existing?.photoUrl, adminMessage: data.message }, ["description", "fullAddress", "cep", "neighborhood", "referencePoint", "photoUrl", "adminMessage"]) }).where(eq(requests.id, data.id));
+  await db.insert(requestUpdates).values({ requestId: data.id, adminId: data.adminId, status: data.status, message: data.message ?? null, encryptedData: sealFields({ message: data.message }) });
   return request[0].userId;
 }
 
@@ -349,14 +372,14 @@ export async function deleteNotificationTokens(tokens: string[]) {
 export async function createAppNotification(data: typeof appNotifications.$inferInsert) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
-  const result = await database.insert(appNotifications).values(data);
+  const result = await database.insert(appNotifications).values({ ...data, encryptedData: sealFields({ title: data.title, body: data.body, data: data.data }) });
   return getInsertId(result);
 }
 
 export async function createAppNotifications(userIds: number[], data: Omit<typeof appNotifications.$inferInsert, "userId">) {
   const database = await getDb();
   if (!database || userIds.length === 0) return;
-  await database.insert(appNotifications).values(userIds.map((userId) => ({ ...data, userId })));
+  await database.insert(appNotifications).values(userIds.map((userId) => ({ ...data, userId, encryptedData: sealFields({ title: data.title, body: data.body, data: data.data }) })));
 }
 
 export async function getClientOperation(userId: number, operationId: string) {
@@ -387,9 +410,10 @@ export async function saveClientOperation(data: typeof clientOperations.$inferIn
 export async function listAppNotifications(userId: number, limit = 100) {
   const database = await getDb();
   if (!database) return [];
-  return database.select().from(appNotifications)
+  const rows = await database.select().from(appNotifications)
     .where(and(eq(appNotifications.userId, userId), isNull(appNotifications.trashedAt)))
     .orderBy(desc(appNotifications.createdAt)).limit(limit);
+  return rows.map((row) => decryptFields(row)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function listTrashedAppNotifications(userId: number, limit = 100) {
@@ -514,14 +538,16 @@ export async function upsertNotificationPreference(userId: number, category: str
 export async function createSuggestion(data: typeof suggestions.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(suggestions).values(data);
+  const result = await db.insert(suggestions).values({ ...data, encryptedData: sealFields({ neighborhood: data.neighborhood, title: data.title, description: data.description, photoUrl: data.photoUrl }) });
   return getInsertId(result);
 }
 
 export async function updateSuggestion(id: number, data: { title: string; description: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(suggestions).set(data).where(eq(suggestions.id, id));
+  const current = await db.select().from(suggestions).where(eq(suggestions.id, id)).limit(1);
+  const existing = current[0];
+  await db.update(suggestions).set({ ...data, encryptedData: sealFields({ neighborhood: existing?.neighborhood, title: data.title, description: data.description, photoUrl: existing?.photoUrl }) }).where(eq(suggestions.id, id));
 }
 
 export async function getSuggestionOwnerId(id: number) {
@@ -534,8 +560,11 @@ export async function getSuggestionOwnerId(id: number) {
 export async function updateOwnSuggestion(userId: number, id: number, data: { title: string; description: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(suggestions).set(data).where(and(eq(suggestions.id, id), eq(suggestions.userId, userId)));
-  return db.select().from(suggestions).where(and(eq(suggestions.id, id), eq(suggestions.userId, userId))).limit(1);
+  const current = await db.select().from(suggestions).where(and(eq(suggestions.id, id), eq(suggestions.userId, userId))).limit(1);
+  const existing = current[0];
+  await db.update(suggestions).set({ ...data, encryptedData: sealFields({ neighborhood: existing?.neighborhood, title: data.title, description: data.description, photoUrl: existing?.photoUrl }) }).where(and(eq(suggestions.id, id), eq(suggestions.userId, userId)));
+  const updated = await db.select().from(suggestions).where(and(eq(suggestions.id, id), eq(suggestions.userId, userId))).limit(1);
+  return updated.map((row) => decryptFields(row)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function deleteSuggestion(id: number) {
@@ -547,7 +576,8 @@ export async function deleteSuggestion(id: number) {
 export async function listUserSuggestions(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(suggestions).where(eq(suggestions.userId, userId)).orderBy(desc(suggestions.createdAt));
+  const rows = await db.select().from(suggestions).where(eq(suggestions.userId, userId)).orderBy(desc(suggestions.createdAt));
+  return rows.map((row) => decryptFields(row)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
 export async function listAnnouncements(userId?: number, role?: "user" | "admin", residentNeighborhood?: string | null) {
@@ -909,8 +939,8 @@ export async function consumePasswordResetCode(id: number) {
 export async function getResidentCredentialByUserId(userId: number) {
   const database = await getDb();
   if (!database) return undefined;
-  const result = await database.select({ username: residentCredentials.username, address: residentCredentials.address, cep: residentCredentials.cep, street: residentCredentials.street, number: residentCredentials.number, neighborhood: residentCredentials.neighborhood, city: residentCredentials.city, state: residentCredentials.state, phone: residentCredentials.phone, sex: residentCredentials.sex, email: residentCredentials.email, emailVerifiedAt: residentCredentials.emailVerifiedAt, complement: residentCredentials.complement, householdSize: residentCredentials.householdSize, emergencyContact: residentCredentials.emergencyContact }).from(residentCredentials).where(eq(residentCredentials.userId, userId)).limit(1);
-  return result[0];
+  const result = await database.select().from(residentCredentials).where(eq(residentCredentials.userId, userId)).limit(1);
+  return decryptFields(result[0]);
 }
 
 export async function updateResidentProfile(userId: number, data: { name: string; address: string; cep?: string | null; street?: string | null; number?: string | null; neighborhood?: string | null; phone: string; sex: typeof residentCredentials.sex.enumValues[number]; email?: string | null; complement?: string | null; householdSize?: number | null; emergencyContact?: string | null }) {
@@ -920,8 +950,8 @@ export async function updateResidentProfile(userId: number, data: { name: string
   // O aplicativo só precisa confirmar a conclusão. Evitamos uma terceira
   // consulta de leitura no fim da mutation, que deixava a resposta mais
   // vulnerável a atrasos da conexão móvel.
-  await database.update(users).set({ name: data.name }).where(eq(users.id, userId));
-  await database.update(residentCredentials).set({ address: data.address, cep: data.cep ?? null, street: data.street ?? null, number: data.number ?? null, neighborhood: data.neighborhood ?? null, phone: data.phone, sex: data.sex, email: data.email ?? null, complement: data.complement ?? null, householdSize: data.householdSize ?? null, emergencyContact: data.emergencyContact ?? null }).where(eq(residentCredentials.userId, userId));
+  await database.update(users).set({ name: data.name, encryptedData: sealFields({ name: data.name }) }).where(eq(users.id, userId));
+  await database.update(residentCredentials).set({ address: data.address, cep: data.cep ?? null, street: data.street ?? null, number: data.number ?? null, neighborhood: data.neighborhood ?? null, phone: data.phone, sex: data.sex, email: data.email ?? null, complement: data.complement ?? null, householdSize: data.householdSize ?? null, emergencyContact: data.emergencyContact ?? null, encryptedData: sealFields({ address: data.address, cep: data.cep, street: data.street, number: data.number, neighborhood: data.neighborhood, phone: data.phone, email: data.email, complement: data.complement, emergencyContact: data.emergencyContact }) }).where(eq(residentCredentials.userId, userId));
   return { success: true } as const;
 }
 
@@ -957,27 +987,27 @@ export async function getResidentCredentialByUsername(username: string) {
   const database = await getDb();
   if (!database) return undefined;
   const result = await database.select().from(residentCredentials).where(eq(residentCredentials.username, username)).limit(1);
-  return result[0];
+  return decryptFields(result[0]);
 }
 
 export async function getResidentCredentialByEmail(email: string) {
   const database = await getDb();
   if (!database) return undefined;
   const result = await database.select().from(residentCredentials).where(eq(residentCredentials.email, email)).limit(1);
-  return result[0];
+  return decryptFields(result[0]);
 }
 
 export async function createResidentCredential(data: typeof residentCredentials.$inferInsert) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
-  await database.insert(residentCredentials).values(data);
+  await database.insert(residentCredentials).values({ ...data, encryptedData: sealFields({ address: data.address, cep: data.cep, street: data.street, number: data.number, neighborhood: data.neighborhood, phone: data.phone, email: data.email, complement: data.complement, emergencyContact: data.emergencyContact }) });
 }
 
 export async function createEmailVerificationCode(data: typeof emailVerificationCodes.$inferInsert) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
   await database.update(emailVerificationCodes).set({ usedAt: new Date() }).where(and(eq(emailVerificationCodes.userId, data.userId), isNull(emailVerificationCodes.usedAt)));
-  const result = await database.insert(emailVerificationCodes).values(data);
+  const result = await database.insert(emailVerificationCodes).values({ ...data, encryptedData: sealFields({ email: data.email }) });
   return getInsertId(result);
 }
 

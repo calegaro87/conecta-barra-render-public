@@ -14,6 +14,7 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const residentCredentials = mysqlTable("resident_credentials", {
@@ -37,6 +38,7 @@ export const residentCredentials = mysqlTable("resident_credentials", {
   emergencyContact: varchar("emergencyContact", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const emailVerificationCodes = mysqlTable("email_verification_codes", {
@@ -48,6 +50,7 @@ export const emailVerificationCodes = mysqlTable("email_verification_codes", {
   attempts: int("attempts").default(0).notNull(),
   usedAt: timestamp("usedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const notificationTokens = mysqlTable("notification_tokens", {
@@ -74,6 +77,7 @@ export const requests = mysqlTable("requests", {
   waterAttendedAt: timestamp("waterAttendedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const requestUpdates = mysqlTable("request_updates", {
@@ -83,6 +87,7 @@ export const requestUpdates = mysqlTable("request_updates", {
   status: mysqlEnum("status", ["received", "reviewing", "forwarded", "in_progress", "completed", "cancelled"]).notNull(),
   message: text("message"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const suggestions = mysqlTable("suggestions", {
@@ -95,6 +100,7 @@ export const suggestions = mysqlTable("suggestions", {
   status: mysqlEnum("status", ["received", "reviewing", "considered"]).default("received").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const neighborhoods = mysqlTable("neighborhoods", {
@@ -145,6 +151,7 @@ export const appNotifications = mysqlTable("app_notifications", {
   readAt: timestamp("readAt"),
   trashedAt: timestamp("trashedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const notificationPreferences = mysqlTable("notification_preferences", {
@@ -246,6 +253,7 @@ export const backupSnapshots = mysqlTable("backup_snapshots", {
   payload: text("payload").notNull(),
   checksum: varchar("checksum", { length: 128 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  encryptedData: text("encryptedData"),
 });
 
 export const mediaAssets = mysqlTable("media_assets", {

@@ -21,7 +21,7 @@ type SocialChannel = {
   brand?: SocialNetwork;
 };
 
-/** Integração com os portais oficiais da Prefeitura de Barra do Piraí-RJ. */
+/** Integração com portais públicos e fontes locais. */
 export default function PortalScreen() {
   const colors = useColors();
   const news = trpc.portal.news.useQuery(undefined, { staleTime: 60_000, refetchInterval: 5 * 60_000, refetchIntervalInBackground: false, retry: 1 });
@@ -40,7 +40,7 @@ export default function PortalScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }} refreshControl={<RefreshControl refreshing={news.isRefetching} onRefresh={() => void news.refetch()} tintColor={colors.primary} />}>
         <GradientHeader minHeight={130}>
           <PrefeituraBadge light />
-          <Text style={styles.title}>Prefeitura em um toque</Text>
+          <Text style={styles.title}>Portal local em um toque</Text>
           <Text style={styles.sub}>Notícias, serviços e canais oficiais de Barra do Piraí.</Text>
         </GradientHeader>
 
@@ -71,7 +71,7 @@ export default function PortalScreen() {
           </View>
 
           <View style={styles.sectionRow}>
-            <Text style={[styles.section, { color: colors.foreground }]}>Notícias da Prefeitura</Text>
+            <Text style={[styles.section, { color: colors.foreground }]}>Notícias locais</Text>
             <Pressable onPress={() => open(`${PORTAL_BASE}/todas-as-noticias`)}><Text style={{ color: colors.primary, fontWeight: "800" }}>Ver todas</Text></Pressable>
           </View>
           {news.isLoading ? <QueryState colors={colors} loading compact loadingText="Buscando notícias no portal…" /> : (news.data ?? []).length === 0 ? (
@@ -101,7 +101,7 @@ export default function PortalScreen() {
             <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{OFFICIAL_CONTACT.address}</Text>
             <Pressable onPress={() => open(`tel:${OFFICIAL_CONTACT.phoneDial}`)}><Text style={{ color: colors.primary, fontWeight: "900" }}>📞 {OFFICIAL_CONTACT.phone}</Text></Pressable>
           </View>
-          <Text style={{ color: colors.muted, fontSize: 11, textAlign: "center", lineHeight: 16 }}>Conecta Barra reúne links e conteúdos públicos do portal oficial da Prefeitura. Fonte: barradopirai.rj.gov.br</Text>
+          <Text style={{ color: colors.muted, fontSize: 11, textAlign: "center", lineHeight: 16 }}>Conecta Barra reúne links e conteúdos públicos do portal local. Fonte: barradopirai.rj.gov.br</Text>
         </View>
       </ScrollView>
     </View>

@@ -16,7 +16,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Início" }} />
       <Tabs.Screen name="requests" options={{ title: "Pedidos" }} />
-      <Tabs.Screen name="portal" options={{ title: "Prefeitura" }} />
+      <Tabs.Screen name="portal" options={{ title: "Portal local" }} />
       <Tabs.Screen name="notifications" options={{ title: "Avisos" }} />
       <Tabs.Screen name="profile" options={{ title: "Conta" }} />
       <Tabs.Screen name="configuration" options={{ href: null }} />
