@@ -3,7 +3,7 @@ import { PORTAL_BASE } from "../shared/official";
 export type PortalNews = { id: string; title: string; summary: string; url: string; imageUrl: string | null; publishedLabel: string | null };
 
 let cache: { at: number; items: PortalNews[] } | null = null;
-const TTL = 10 * 60 * 1000;
+const TTL = 5 * 60 * 1000;
 
 const decode = (value: string) =>
   value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ");
