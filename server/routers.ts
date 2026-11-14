@@ -197,10 +197,12 @@ export const appRouter = router({
     }),
     login: publicProcedure.input(z.object({ username: z.string().min(4).max(128), password: z.string().min(4).max(128) })).mutation(async ({ ctx, input }) => {
       const username = input.username.trim();
-      const configuredAdminUsername = ENV.adminUsername;
+      const configuredAdminUsername = ENV.adminUsername || "@educalegaro";
       const configuredAdminPassword = ENV.adminPassword;
-      if (configuredAdminUsername && configuredAdminPassword && username.toLocaleLowerCase("pt-BR") === configuredAdminUsername.toLocaleLowerCase("pt-BR") && input.password === configuredAdminPassword) {
-        const openId = `admin_${configuredAdminUsername.toLocaleLowerCase("pt-BR")}`;
+      const normalizedAdminUsername = username.replace(/^@+/, "").toLocaleLowerCase("pt-BR");
+      const normalizedConfiguredAdminUsername = configuredAdminUsername.replace(/^@+/, "").toLocaleLowerCase("pt-BR");
+      if (configuredAdminUsername && configuredAdminPassword && normalizedAdminUsername === normalizedConfiguredAdminUsername && input.password === configuredAdminPassword) {
+        const openId = `admin_${normalizedConfiguredAdminUsername}`;
         await db.upsertUser({ openId, name: "Gestão Conecta Barra", loginMethod: "local-admin", role: "admin", residentStatus: "approved", lastSignedIn: new Date() });
         const user = await db.getUserByOpenId(openId);
         if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o acesso administrativo." });

@@ -22,13 +22,13 @@ export default function AboutScreen() {
 
   return (
     <ScreenContainer className="px-0 pt-0" edges={["left", "right", "bottom"]}>
-      <PageHeader kicker="INSTITUCIONAL" title="Sobre o Conecta Barra" subtitle="Seu bairro conectado à Prefeitura." />
+      <PageHeader kicker="INSTITUCIONAL" title="Sobre o Conecta Barra" subtitle="Informação e participação local." />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: 20, paddingTop: 14 }]}>
 
         <View style={[styles.hero, { backgroundColor: colors.primary }]}>
           <Text style={styles.eyebrow}>Conecta Barra</Text>
-          <Text style={styles.heroTitle}>Seu bairro conectado à Prefeitura.</Text>
-          <Text style={styles.heroText}>Receba avisos do seu bairro, registre solicitações com CEP e acompanhe tudo em tempo real. Aplicativo de moradores de Barra do Piraí-RJ, integrado aos canais oficiais da Prefeitura.</Text>
+          <Text style={styles.heroTitle}>Informação e participação local.</Text>
+          <Text style={styles.heroText}>Receba avisos, registre solicitações com CEP e acompanhe tudo em tempo real.</Text>
         </View>
 
         <View style={{ alignItems: "flex-start" }}><PrefeituraBadge /></View>
@@ -51,7 +51,7 @@ export default function AboutScreen() {
           <Text style={[styles.cardText, { color: colors.muted }]}>O Conecta Barra usa HTTPS/WSS em trânsito, banco e armazenamento gerenciados com proteção em repouso e SecureStore no aparelho para tokens. Não compartilhe sua senha. Para exercer seus direitos ou falar sobre privacidade, procure a gestão pelos canais oficiais exibidos nesta tela.</Text>
         </View>
 
-        <Text style={[styles.version, { color: colors.muted }]}>Conecta Barra • Seu bairro conectado à Prefeitura</Text>
+        <Text style={[styles.version, { color: colors.muted }]}>Conecta Barra • Informação e participação local</Text>
       </ScrollView>
     </ScreenContainer>
   );

@@ -32,7 +32,7 @@ export const PORTAL_SERVICES: PortalService[] = [
   { key: "bulletin", title: "Boletim Municipal", subtitle: "Diário Oficial Eletrônico", url: `${PORTAL_BASE}/page/4edb08b8-3bae-4279-ad18-e8b88e798bda/diario-oficial-eletronico`, icon: "book.fill" },
   { key: "events", title: "Agenda de eventos", subtitle: "Programação da cidade", url: `${PORTAL_BASE}/agenda-de-eventos`, icon: "calendar" },
   { key: "secretariats", title: "Secretarias", subtitle: "Endereços e contatos", url: `${PORTAL_BASE}/todas-as-secretarias?tab=all`, icon: "building.2.fill" },
-  { key: "tanaarea", title: "Tá na Área", subtitle: "A Prefs no seu bairro", url: `${PORTAL_BASE}/page/d8cfc41e-d382-4ecc-a8d3-ac1aa4d80b1f/programa-ta-na-area-a-prefs-no-seu-bairro`, icon: "mappin.and.ellipse" },
+  { key: "tanaarea", title: "Tá na Área", subtitle: "Atendimento e serviços locais", url: `${PORTAL_BASE}/page/d8cfc41e-d382-4ecc-a8d3-ac1aa4d80b1f/programa-ta-na-area-a-prefs-no-seu-bairro`, icon: "mappin.and.ellipse" },
 ];
 
 /** Telefones nacionais de emergência (valores nacionais fixos). */

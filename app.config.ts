@@ -3,7 +3,7 @@ import "./scripts/load-env.js";
 import { existsSync } from "node:fs";
 import type { ExpoConfig } from "expo/config";
 
-const GOOGLE_ANDROID_REDIRECT_SCHEME = "com.googleusercontent.apps.470980545863";
+const GOOGLE_ANDROID_REDIRECT_SCHEME = "com.googleusercontent.apps.470980545863-6588dkfremjlpl95ib1a8aespc2fcbmq";
 
 const PACKAGE_ID = "com.conectabarra.app"; // troque se tiver um domínio próprio (ex.: br.com.suaempresa.conectabarra)
 // Valores padrão de PRODUÇÃO. Importante: `eas update` (OTA) roda na sua máquina e NÃO lê o `env` do eas.json.
@@ -19,7 +19,7 @@ const config: ExpoConfig = {
   name: "Conecta Barra",
   slug: "conecta-barra",
   owner: "conectabarras-team",
-  version: "1.0.6",
+  version: "1.0.7",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: ["conectabarra", GOOGLE_ANDROID_REDIRECT_SCHEME],

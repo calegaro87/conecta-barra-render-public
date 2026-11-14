@@ -33,5 +33,5 @@ export const GOOGLE_WEB_CLIENT_ID = "470980545863-kf726hfmdfk6mml19dnc91fdk6i3u0
 export const GOOGLE_ANDROID_CLIENT_ID = "470980545863-6588dkfremjlpl95ib1a8aespc2fcbmq.apps.googleusercontent.com";
 
 /** Redirect nativo esperado pelo cliente OAuth Android do Google. */
-export const GOOGLE_ANDROID_REDIRECT_SCHEME = `com.googleusercontent.apps.${GOOGLE_ANDROID_CLIENT_ID.split(".")[0]}`;
+export const GOOGLE_ANDROID_REDIRECT_SCHEME = `com.googleusercontent.apps.${GOOGLE_ANDROID_CLIENT_ID.replace(/\.apps\.googleusercontent\.com$/, "")}`;
 export const GOOGLE_ANDROID_REDIRECT_URI = `${GOOGLE_ANDROID_REDIRECT_SCHEME}:/oauthredirect`;
