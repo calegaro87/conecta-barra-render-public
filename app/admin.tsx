@@ -140,7 +140,7 @@ export default function AdminDashboard() {
       </GradientHeader>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: 20, paddingTop: 14 }]}>
         <View style={styles.header}>
-          
+
           <View style={styles.headerActions}>
             <Pressable accessibilityRole="button" accessibilityLabel={`Abrir notificações${unreadNotificationCount ? `, ${unreadNotificationCount} não lidas` : ""}`} onPress={() => router.push("/notifications")} style={({ pressed }) => [styles.notificationButton, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}>
               <IconSymbol name="bell.fill" size={21} color={colors.primary} />
@@ -200,7 +200,7 @@ export default function AdminDashboard() {
           )}
         </View>
 
-        <View style={[styles.pushTestCard, { backgroundColor: colors.primary + "0D", borderColor: colors.primary + "66" }]}> 
+        <View style={[styles.pushTestCard, { backgroundColor: "#F1F7FF", borderColor: "#111827" }]}>
           <View style={styles.pushTestCopy}>
             <Text style={[styles.pushTestTitle, { color: colors.foreground }]}>Diagnóstico de notificações</Text>
             <Text style={[styles.pushTestSubtitle, { color: colors.muted }]}>Envie um alerta real para o aparelho do administrador e confirme o funcionamento do push.</Text>
@@ -373,20 +373,20 @@ const styles = StyleSheet.create({
   globalSearchArrow: { fontSize: 22, fontWeight: "700" },
   updated: { fontSize: 12 },
   link: { fontWeight: "800", fontSize: 14 },
-  filterSummary: { fontSize: 12, fontWeight: "700" },
-  filterLabel: { fontSize: 11, fontWeight: "800", marginTop: -9 },
+  filterSummary: { fontSize: 12, fontWeight: "900", color: "#000000" },
+  filterLabel: { fontSize: 11, fontWeight: "900", color: "#000000", marginTop: -9 },
   metrics: { flexDirection: "row", gap: 10 },
-  metric: { flex: 1, borderRadius: 20, borderWidth: 1.5, padding: 14, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  metric: { flex: 1, borderRadius: 20, borderWidth: 1, padding: 14, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   metricIcon: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 10 },
   metricValue: { fontSize: 27, lineHeight: 32, fontWeight: "900" },
   metricLabel: { fontSize: 11, marginTop: 3 },
   filterRow: { flexDirection: "row", gap: 7, borderBottomWidth: 1, paddingBottom: 3 },
   filter: { borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 9 },
-  filterText: { fontSize: 12, fontWeight: "800" },
+  filterText: { fontSize: 12, fontWeight: "900", color: "#000000" },
   queueItem: { minHeight: 88, borderRadius: 20, borderWidth: 1.5, flexDirection: "row", alignItems: "center", padding: 14, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   queueIndicator: { width: 9, height: 9, borderRadius: 5, marginRight: 12 },
   queueCopy: { flex: 1 },
-  queueTitle: { fontSize: 14, fontWeight: "800" },
+  queueTitle: { fontSize: 14, fontWeight: "900", color: "#000000" },
   queuePlace: { fontSize: 12, marginTop: 4 },
   queueRequester: { fontSize: 12, fontWeight: "800", marginTop: 5 },
   queueTime: { fontSize: 11, marginRight: 8 },

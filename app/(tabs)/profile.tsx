@@ -206,7 +206,7 @@ export default function ProfileScreen() {
   return <ScreenContainer className="px-5 pt-5"><ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 220, 260) }]}>
     <Text style={[styles.eyebrow, { color: colors.primary }]}>MEU PERFIL</Text>
     <View style={styles.titleRow}>
-      <View style={styles.titleCopy}><Text style={[styles.title, { color: colors.foreground }]}>Dados do morador</Text><Text style={[styles.subtitle, { color: colors.muted }]}>Atualize seus dados e mantenha seu cadastro completo.</Text><View style={styles.roleRow}>{user?.role === "admin" ? <Text style={[styles.roleChip, { backgroundColor: colors.primary + "18", color: colors.primary }]}>Gestor</Text> : <Text style={[styles.roleChip, { backgroundColor: (user?.residentStatus === "approved" ? colors.success : colors.warning) + "18", color: user?.residentStatus === "approved" ? colors.success : colors.warning }]}>{user?.residentStatus === "approved" ? "Morador aprovado" : "Aguardando aprovação"}</Text>}</View></View>
+      <View style={[styles.titleCopy, styles.titleBanner, { backgroundColor: "#EAF4FF", borderColor: colors.primary }]}><Text style={[styles.title, { color: "#000000" }]}>{isAdmin ? "Painel do administrador" : "Dados do morador"}</Text><Text style={[styles.subtitle, { color: "#1F2937" }]}>{isAdmin ? "Administre o Conecta Barra e acompanhe a cidade." : "Atualize seus dados e mantenha seu cadastro completo."}</Text><View style={styles.roleRow}>{user?.role === "admin" ? <Text style={[styles.roleChip, { backgroundColor: colors.primary + "18", color: colors.primary }]}>Administrador</Text> : <Text style={[styles.roleChip, { backgroundColor: (user?.residentStatus === "approved" ? colors.success : colors.warning) + "18", color: user?.residentStatus === "approved" ? colors.success : colors.warning }]}>{user?.residentStatus === "approved" ? "Morador aprovado" : "Aguardando aprovação"}</Text>}</View></View>
       <View style={styles.titleActions}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Abrir avisos${unreadNotificationCount ? `, ${unreadNotificationCount} não lidas` : ""}`} onPress={() => router.push("/notifications")} style={({ pressed }) => [styles.notificationButton, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}>
           <IconSymbol name="bell.fill" size={21} color={colors.primary} />
@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   titleCopy: { flex: 1, minWidth: 0 },
+  titleBanner: { borderWidth: 1, borderRadius: 20, padding: 14, shadowColor: "#0B5FD8", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   titleActions: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
   title: { fontSize: 30, lineHeight: 36, fontWeight: "900", letterSpacing: -0.7 },
   subtitle: { fontSize: 15, lineHeight: 21, marginTop: 6 },

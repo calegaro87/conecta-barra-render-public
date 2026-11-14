@@ -12,6 +12,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { getBiometricSession, setBiometricSession, setSessionToken, setUserInfo, clearBiometricSession, removeSessionToken, clearUserInfo } from "@/lib/_core/auth";
 import { PasswordField } from "@/components/password-field";
+import { LiveDateTime } from "@/components/live-date-time";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { AppMark, PrefeituraBadge } from "@/components/brand-logo";
@@ -173,6 +174,7 @@ export default function LoginScreen() {
             <AppMark size={84} />
             <Text style={ns.heroTitle}>Conecta Barra</Text>
             <Text style={ns.heroSub}>{BRAND.tagline}</Text>
+            <LiveDateTime light style={ns.heroDateTime} />
             <View style={ns.heroBadge}><PrefeituraBadge light compact /></View>
           </LinearGradient>
 
@@ -280,6 +282,7 @@ const ns = StyleSheet.create({
   heroBubble: { position: "absolute", right: -60, top: -40, width: 210, height: 210, borderRadius: 105, backgroundColor: "#FFFFFF14" },
   heroTitle: { color: "#FFFFFF", fontSize: 32, fontWeight: "900", letterSpacing: -0.6, marginTop: 8 },
   heroSub: { color: "#DDF0FF", fontSize: 14, fontWeight: "600" },
+  heroDateTime: { marginTop: 4, fontSize: 12, fontWeight: "900", textAlign: "center" },
   heroBadge: { marginTop: 14, backgroundColor: "#FFFFFF1F", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
   sheet: { flex: 1, marginTop: -22, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 6 },
   title: { fontSize: 24, fontWeight: "900" },

@@ -11,6 +11,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { OfficialSocialLogo, type SocialNetwork } from "@/components/official-social-logo";
 import { QueryState } from "@/components/query-state";
 import { Reveal } from "@/components/ui-kit";
+import { LiveDateTime } from "@/components/live-date-time";
 import { clearUserInfo, removeSessionToken } from "@/lib/_core/auth";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
@@ -66,6 +67,7 @@ export default function HomeScreen() {
           </View>
           <Text style={styles.hello}>{authed ? `Olá, ${firstName}!` : "Bem-vindo!"}</Text>
           <Text style={styles.helloSub}>{authed ? (bairro ? `Você está conectado ao bairro ${bairro}.` : isAdmin ? "Painel de gestão disponível." : "Complete seu endereço para receber avisos do bairro.") : "Entre para acompanhar sua rua e a Prefeitura."}</Text>
+          <LiveDateTime light style={styles.liveDateTime} />
           <View style={styles.headerActions}>
             {authed ? (
               <>
@@ -153,6 +155,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
   hello: { color: "#FFFFFF", fontSize: 28, fontWeight: "900", letterSpacing: -0.5 },
   helloSub: { color: "#DDF0FF", fontSize: 14, marginTop: 4, lineHeight: 20 },
+  liveDateTime: { marginTop: 8, fontSize: 12, fontWeight: "900" },
   headerActions: { flexDirection: "row", gap: 8, marginTop: 16, flexWrap: "wrap" },
   pill: { backgroundColor: "#FFFFFF", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   pillText: { color: "#062B5E", fontWeight: "900", fontSize: 13 },

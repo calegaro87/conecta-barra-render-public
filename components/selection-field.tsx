@@ -54,7 +54,7 @@ export function SelectionField<T extends string>({
           pressed && !disabled && styles.pressed,
         ]}
       >
-        <Text numberOfLines={1} style={[styles.value, { color: selectedLabel === placeholder ? colors.muted : colors.foreground }]}>
+        <Text numberOfLines={1} style={[styles.value, { color: selectedLabel === placeholder ? colors.muted : "#000000" }]}>
           {selectedLabel}
         </Text>
         <Text accessibilityElementsHidden style={[styles.chevron, { color: colors.primary }]}>⌄</Text>
@@ -85,7 +85,7 @@ export function SelectionField<T extends string>({
                     onPress={() => select(item.value)}
                     style={[styles.option, { borderBottomColor: colors.border }, selected && { backgroundColor: "#EAF4FF", borderColor: colors.primary }]}
                   >
-                    <Text style={[styles.optionText, { color: selected ? colors.primary : colors.foreground }]}>{item.label}</Text>
+                    <Text style={[styles.optionText, { color: "#000000" }]}>{item.label}</Text>
                     {selected ? <Text style={[styles.check, { color: colors.primary }]}>✓</Text> : null}
                   </Pressable>
                 );
@@ -100,7 +100,7 @@ export function SelectionField<T extends string>({
 
 const styles = StyleSheet.create({
   field: { minHeight: 54, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10 },
-  value: { flex: 1, fontSize: 15, fontWeight: "600" },
+  value: { flex: 1, fontSize: 15, fontWeight: "900" },
   chevron: { fontSize: 22, lineHeight: 24, fontWeight: "900" },
   backdrop: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0,0,0,0.48)" },
   card: { width: "100%", maxWidth: 480, maxHeight: "80%", alignSelf: "center", borderWidth: 1, borderRadius: 24, padding: 16, overflow: "hidden", shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   closeText: { fontSize: 24, lineHeight: 28, fontWeight: "600" },
   list: { flexGrow: 0 },
   option: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderWidth: 1, borderColor: "transparent", borderRadius: 10, marginBottom: 3 },
-  optionText: { flex: 1, fontSize: 14, fontWeight: "700" },
+  optionText: { flex: 1, fontSize: 14, fontWeight: "900" },
   check: { fontSize: 17, fontWeight: "900" },
   empty: { padding: 18, textAlign: "center", fontSize: 13 },
   disabled: { opacity: 0.55 },
