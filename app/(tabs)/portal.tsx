@@ -24,7 +24,7 @@ type SocialChannel = {
 /** Integração com os portais oficiais da Prefeitura de Barra do Piraí-RJ. */
 export default function PortalScreen() {
   const colors = useColors();
-  const news = trpc.portal.news.useQuery(undefined, { staleTime: 5 * 60_000, retry: 1 });
+  const news = trpc.portal.news.useQuery(undefined, { staleTime: 60_000, refetchInterval: 5 * 60_000, refetchIntervalInBackground: false, retry: 1 });
   const social = trpc.social.get.useQuery();
   const channels: SocialChannel[] = [
     { label: "Portal oficial", url: social.data?.website, color: "#0B5FD8", icon: "globe" as const },

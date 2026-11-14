@@ -76,7 +76,7 @@ export default function NewRequestScreen() {
 
   return (
     <ScreenContainer className="px-5 pt-4" containerClassName="bg-background">
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: colors.foreground }]}>Nova solicitação</Text>
         <Text style={[styles.intro, { color: colors.muted }]}>Conte o que aconteceu. A gestão acompanhará o registro com você.</Text>
 
@@ -101,7 +101,7 @@ export default function NewRequestScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 32, gap: 12 },
+  content: { paddingBottom: 180, gap: 12 },
   title: { fontSize: 20, fontWeight: "800" },
   intro: { fontSize: 14, lineHeight: 20, marginBottom: 8 },
   label: { fontSize: 14, fontWeight: "800", marginTop: 8 },

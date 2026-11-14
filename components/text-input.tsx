@@ -12,7 +12,7 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(function TextIn
   return (
     <RNTextInput
       ref={ref}
-      style={[style, focused ? { borderColor: colors.primary } : null]}
+      style={[style, { borderColor: focused ? colors.primary : "#111827" }]}
       placeholderTextColor={placeholderTextColor ?? colors.muted + "AA"}
       selectionColor={selectionColor ?? colors.primary}
       onFocus={(event) => { setFocused(true); onFocus?.(event); }}

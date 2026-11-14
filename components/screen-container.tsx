@@ -1,4 +1,4 @@
-import { View, type ViewProps } from "react-native";
+import { KeyboardAvoidingView, Platform, View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
 import { cn } from "@/lib/utils";
@@ -61,7 +61,13 @@ export function ScreenContainer({
         className={cn("flex-1", safeAreaClassName)}
         style={style}
       >
-        <View className={cn("flex-1", className)}>{children}</View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        >
+          <View className={cn("flex-1", className)}>{children}</View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

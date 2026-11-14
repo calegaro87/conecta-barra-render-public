@@ -49,7 +49,7 @@ export function SelectionField<T extends string>({
         onPress={() => setVisible(true)}
         style={({ pressed }) => [
           styles.field,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          { backgroundColor: value ? "#EAF4FF" : colors.surface, borderColor: colors.border },
           disabled && styles.disabled,
           pressed && !disabled && styles.pressed,
         ]}
@@ -83,7 +83,7 @@ export function SelectionField<T extends string>({
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     onPress={() => select(item.value)}
-                    style={[styles.option, { borderBottomColor: colors.border }, selected && { backgroundColor: colors.primary + "12" }]}
+                    style={[styles.option, { borderBottomColor: colors.border }, selected && { backgroundColor: "#EAF4FF", borderColor: colors.primary }]}
                   >
                     <Text style={[styles.optionText, { color: selected ? colors.primary : colors.foreground }]}>{item.label}</Text>
                     {selected ? <Text style={[styles.check, { color: colors.primary }]}>✓</Text> : null}
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   close: { width: 36, height: 36, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeText: { fontSize: 24, lineHeight: 28, fontWeight: "600" },
   list: { flexGrow: 0 },
-  option: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  option: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderWidth: 1, borderColor: "transparent", borderRadius: 10, marginBottom: 3 },
   optionText: { flex: 1, fontSize: 14, fontWeight: "700" },
   check: { fontSize: 17, fontWeight: "900" },
   empty: { padding: 18, textAlign: "center", fontSize: 13 },
