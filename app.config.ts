@@ -8,7 +8,7 @@ const PACKAGE_ID = "com.conectabarra.app"; // troque se tiver um domínio própr
 // Sem estes padrões, uma atualização OTA publicada sem .env sairia sem `updates.url` e com a API apontando
 // para http://10.0.2.2:3000, quebrando o app de todos os usuários. Mantenha iguais aos do eas.json.
 const DEFAULT_API_URL = "https://conecta-barra-api.onrender.com";
-const DEFAULT_EAS_PROJECT_ID = "0dabf554-1a7c-44a9-9212-7ed648cd58b3";
+const DEFAULT_EAS_PROJECT_ID = "c87bc760-536b-44e8-bf16-06ea027209d0";
 const projectId = (process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim() || DEFAULT_EAS_PROJECT_ID);
 // Em `expo start` (NODE_ENV=development) mantém o servidor local; em build/OTA usa a produção.
 const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || (process.env.NODE_ENV === "development" ? "" : DEFAULT_API_URL);
@@ -16,7 +16,7 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || (process.env.NODE_ENV 
 const config: ExpoConfig = {
   name: "Conecta Barra",
   slug: "conecta-barra",
-  owner: "pereira2016s-team",
+  owner: "conectabarras-team",
   version: "1.0.4",
   orientation: "portrait",
   icon: "./assets/images/icon.png",

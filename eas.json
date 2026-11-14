@@ -2,7 +2,7 @@
   "cli": { "version": ">= 12.0.0", "appVersionSource": "remote" },
   "build": {
     "base": {
-      "env": { "EXPO_PUBLIC_API_URL": "https://conecta-barra-api.onrender.com", "EXPO_PUBLIC_EAS_PROJECT_ID": "0dabf554-1a7c-44a9-9212-7ed648cd58b3" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://conecta-barra-api.onrender.com", "EXPO_PUBLIC_EAS_PROJECT_ID": "c87bc760-536b-44e8-bf16-06ea027209d0" }
     },
     "preview": {
       "extends": "base",
