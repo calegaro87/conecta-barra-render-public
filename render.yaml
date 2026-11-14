@@ -3,10 +3,9 @@ services:
     name: conecta-barra-api
     runtime: node
     region: virginia
-    # IMPORTANTE: o plano "free" hiberna após ~15 min sem requisições HTTP e derruba todos os WebSockets;
-    # com isso o tempo real e o disparo de push ficam intermitentes. Para funcionamento contínuo use um plano
-    # pago (starter ou superior), que fica sempre ligado.
-    plan: starter
+    # O plano gratuito hiberna após ~15 min sem requisições HTTP e derruba os WebSockets.
+    # O app possui reconexão automática e push como fallback; não usar plano pago sem aprovação explícita.
+    plan: free
     # O tempo real mantém os aparelhos conectados em memória: use SEMPRE 1 instância (sem autoescala),
     # a menos que adicione um broker (Redis) para espalhar os eventos entre instâncias.
     numInstances: 1
