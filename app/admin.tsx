@@ -1,6 +1,10 @@
 import { describePushErrors } from "@/lib/push-diagnostics";
 import { getCurrentPushToken } from "@/lib/push-token";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { setCurrentPushToken } from "@/lib/push-token";
+import Constants from "expo-constants";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { TextInput } from "@/components/text-input";
 import { Pressable } from "@/components/pressable";
 import { useMemo, useState } from "react";
@@ -93,6 +97,7 @@ export default function AdminDashboard() {
   const maxChartValue = Math.max(1, ...statusBreakdown.map((item) => item.value), ...categoryBreakdown.map((item) => item.value), ...regionBreakdown.map((item) => item.value));
   const updateStatus = trpc.requests.updateStatus.useMutation({ onSuccess: () => void allRequests.refetch(), onError: (error) => Alert.alert("Não foi possível atualizar", error.message) });
   const deleteRequest = trpc.requests.delete.useMutation({ onSuccess: () => void allRequests.refetch(), onError: (error) => Alert.alert("Não foi possível excluir", error.message) });
+  const registerDevice = trpc.notifications.registerDevice.useMutation();
   const testPush = trpc.notifications.testPush.useMutation({
     onSuccess: (result) => {
       const { delivery } = result;
@@ -103,6 +108,28 @@ export default function AdminDashboard() {
     },
     onError: (error) => Alert.alert("Não foi possível enviar o push", error.message),
   });
+  const sendTestPush = async () => {
+    if (testPush.isPending || registerDevice.isPending) return;
+    try {
+      let token = getCurrentPushToken();
+      if (Platform.OS !== "web" && Device.isDevice) {
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+        if (!projectId) throw new Error("O projeto EAS do aplicativo não foi identificado. Instale o APK oficial mais recente.");
+        const permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== "granted") {
+          const requested = await Notifications.requestPermissionsAsync();
+          if (requested.status !== "granted") throw new Error("Permissão de notificações não concedida neste aparelho.");
+        }
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      }
+      if (!token) throw new Error("O aparelho ainda não possui um token de push. Abra o aplicativo, mantenha a conta conectada por alguns segundos e tente novamente.");
+      setCurrentPushToken(token);
+      await registerDevice.mutateAsync({ token, platform: Platform.OS === "ios" ? "ios" : "android" });
+      testPush.mutate();
+    } catch (error) {
+      Alert.alert("Não foi possível preparar o push", error instanceof Error ? error.message : "Abra o aplicativo novamente e tente outra vez.");
+    }
+  };
   const confirmDeleteRequest = (id: number) => Alert.alert("Excluir solicitação?", "Esta ação remove o registro administrativo e não pode ser desfeita.", [{ text: "Cancelar", style: "cancel" }, { text: "Excluir", style: "destructive", onPress: () => deleteRequest.mutate({ id }) }]);
   const logout = trpc.auth.logout.useMutation();
   const signOut = () => Alert.alert("Sair do painel?", "Você precisará fazer login novamente para acessar as funções administrativas.", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: () => { void (async () => { await Promise.race([logout.mutateAsync({ pushToken: getCurrentPushToken() ?? undefined }).catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 3000))]); await removeSessionToken(); await clearUserInfo(); router.replace("/login"); })(); } }]);
@@ -180,9 +207,9 @@ export default function AdminDashboard() {
               { label: "Avisos não lidos", value: adminSummary.data?.unreadNotifications ?? 0, color: colors.error },
               { label: "E-mails com falha", value: adminSummary.data?.email.failed ?? 0, color: adminSummary.data?.email.failed ? colors.error : colors.success },
             ].map((item) => (
-              <View key={item.label} style={[styles.adminSummaryItem, { borderColor: item.color + "66", backgroundColor: item.color + "12" }]}>
+              <View key={item.label} style={[styles.adminSummaryItem, { backgroundColor: item.color + "12" }]}>
                 <Text style={[styles.adminSummaryValue, { color: item.color }]}>{item.value}</Text>
-                <Text style={[styles.adminSummaryLabel, { color: colors.muted }]}>{item.label}</Text>
+            <Text style={styles.adminSummaryLabel}>{item.label}</Text>
               </View>
             ))}
           </View>
@@ -205,9 +232,9 @@ export default function AdminDashboard() {
             <Text style={[styles.pushTestTitle, { color: colors.foreground }]}>Diagnóstico de notificações</Text>
             <Text style={[styles.pushTestSubtitle, { color: colors.muted }]}>Envie um alerta real para o aparelho do administrador e confirme o funcionamento do push.</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Enviar notificação push de teste" disabled={testPush.isPending} onPress={() => testPush.mutate()} style={({ pressed }) => [styles.pushTestButton, { backgroundColor: colors.primary }, pressed && styles.pressed, testPush.isPending && styles.disabled]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Enviar notificação push de teste" disabled={testPush.isPending || registerDevice.isPending} onPress={() => void sendTestPush()} style={({ pressed }) => [styles.pushTestButton, { backgroundColor: colors.primary }, pressed && styles.pressed, (testPush.isPending || registerDevice.isPending) && styles.disabled]}>
             <IconSymbol name="bell.fill" size={18} color="#FFFFFF" />
-            <Text style={styles.pushTestButtonText}>{testPush.isPending ? "Enviando…" : "Enviar push de teste"}</Text>
+            <Text style={styles.pushTestButtonText}>{registerDevice.isPending ? "Registrando aparelho…" : testPush.isPending ? "Enviando…" : "Enviar push de teste"}</Text>
           </Pressable>
         </View>
 
@@ -217,10 +244,10 @@ export default function AdminDashboard() {
         </View>
         <View style={styles.metrics}>
           {metrics.map((metric) => (
-            <View key={metric.label} style={[styles.metric, { backgroundColor: toneColor(metric.tone) + "0D", borderColor: toneColor(metric.tone) + "88" }]}>
+            <View key={metric.label} style={[styles.metric, { backgroundColor: toneColor(metric.tone) + "0D" }]}>
               <View style={[styles.metricIcon, { backgroundColor: toneColor(metric.tone) + "18" }]}><IconSymbol name={metric.icon} size={19} color={toneColor(metric.tone)} /></View>
               <Text style={[styles.metricValue, { color: colors.foreground }]}>{metric.value}</Text>
-              <Text style={[styles.metricLabel, { color: colors.muted }]}>{metric.label}</Text>
+              <Text style={styles.metricLabel}>{metric.label}</Text>
             </View>
           ))}
         </View>
@@ -265,7 +292,7 @@ export default function AdminDashboard() {
         <SelectionField value={statusFilter} options={statusFilters} onChange={setStatusFilter} title="Filtrar por status" placeholder="Todos" accessibilityLabel="Filtrar solicitações por status" />
         <Text style={[styles.filterLabel, { color: colors.muted }]}>Pesquisar por data de criação</Text>
         <SelectionField value={periodFilter} options={periodFilters} onChange={setPeriodFilter} title="Filtrar por período" placeholder="Todo período" accessibilityLabel="Filtrar solicitações por período" />
-        {allRequests.isLoading ? <QueryState colors={colors} loading compact loadingText="Carregando solicitações…" /> : allRequests.error ? <QueryState colors={colors} loading={false} error={allRequests.error} compact errorTitle="Não foi possível carregar a fila" onRetry={() => void allRequests.refetch()} /> : <>{filteredRows.slice(0, 6).map((item) => { const color = statusColor(item.status); return <View key={item.id} style={[styles.queueItem, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[styles.queueIndicator, { backgroundColor: color }]} /><View style={styles.queueCopy}><Text style={[styles.queueTitle, { color: colors.foreground }]}>{categoryLabels[item.category] ?? item.category}</Text><Text style={[styles.queuePlace, { color: colors.muted }]}>{item.fullAddress}</Text><Text style={[styles.queueRequester, { color: colors.foreground }]}>👤 {item.requesterName?.trim() || item.requesterUsername?.trim() || "Morador não identificado"}</Text><View style={[styles.statusBadge, { backgroundColor: color + "18" }]}><Text style={[styles.statusBadgeText, { color }]}>{statusLabels[item.status] ?? item.status}</Text></View></View><Text style={[styles.queueTime, { color: colors.muted }]}>{item.createdAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</Text><Pressable onPress={() => confirmDeleteRequest(item.id)} style={({ pressed }) => [styles.visibleDelete, { borderColor: colors.error }, pressed && styles.pressed]}><Text style={[styles.visibleDeleteText, { color: colors.error }]}>Excluir</Text></Pressable><Pressable onPress={() => openRequestActions(item)} onLongPress={() => openRequestStatusActions(item)} style={({ pressed }) => [styles.moreButton, { backgroundColor: colors.primary + "12" }, pressed && styles.pressed]}><Text style={[styles.moreText, { color: colors.primary }]}>Abrir</Text></Pressable></View>; })}{filteredRows.length === 0 && <Text style={[styles.queuePlace, { color: colors.muted }]}>{requestRows.length === 0 ? "Nenhuma solicitação cadastrada." : "Nenhuma solicitação corresponde aos filtros."}</Text>}</>}
+        {allRequests.isLoading ? <QueryState colors={colors} loading compact loadingText="Carregando solicitações…" /> : allRequests.error ? <QueryState colors={colors} loading={false} error={allRequests.error} compact errorTitle="Não foi possível carregar a fila" onRetry={() => void allRequests.refetch()} /> : <>{filteredRows.slice(0, 6).map((item) => { const color = statusColor(item.status); return <View key={item.id} style={[styles.queueItem, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[styles.queueIndicator, { backgroundColor: color }]} /><View style={styles.queueCopy}><Text style={[styles.queueTitle, { color: colors.foreground }]}>{categoryLabels[item.category] ?? item.category}</Text><Text style={[styles.queuePlace, { color: colors.muted }]}>{item.fullAddress}</Text><Text style={[styles.queueRequester, { color: colors.foreground }]}>👤 {item.requesterName?.trim() || item.requesterUsername?.trim() || "Morador não identificado"}</Text><View style={[styles.statusBadge, { backgroundColor: color + "18" }]}><Text style={styles.statusBadgeText}>{statusLabels[item.status] ?? item.status}</Text></View></View><Text style={[styles.queueTime, { color: colors.muted }]}>{item.createdAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</Text><Pressable onPress={() => confirmDeleteRequest(item.id)} style={({ pressed }) => [styles.visibleDelete, { borderColor: colors.error }, pressed && styles.pressed]}><Text style={[styles.visibleDeleteText, { color: colors.error }]}>Excluir</Text></Pressable><Pressable onPress={() => openRequestActions(item)} onLongPress={() => openRequestStatusActions(item)} style={({ pressed }) => [styles.moreButton, { backgroundColor: colors.primary + "12" }, pressed && styles.pressed]}><Text style={[styles.moreText, { color: colors.primary }]}>Abrir</Text></Pressable></View>; })}{filteredRows.length === 0 && <Text style={[styles.queuePlace, { color: colors.muted }]}>{requestRows.length === 0 ? "Nenhuma solicitação cadastrada." : "Nenhuma solicitação corresponde aos filtros."}</Text>}</>}
 
         <Pressable onPress={() => router.push("/admin/water-shortage")} style={({ pressed }) => [styles.secondaryAction, { borderColor: colors.warning, backgroundColor: colors.warning + "12" }, pressed && styles.pressed]}>
           <IconSymbol name="drop.fill" size={20} color={colors.warning} />
@@ -338,11 +365,11 @@ const styles = StyleSheet.create({
   heroLogo: { width: 52, height: 52, borderRadius: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   sectionTitle: { fontSize: 18, fontWeight: "900" },
-  adminSummaryCard: { borderWidth: 1, borderRadius: 21, padding: 14, marginBottom: 2, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  adminSummaryCard: { borderWidth: 0, borderRadius: 21, padding: 14, marginBottom: 2, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   adminSummaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  adminSummaryItem: { width: "48%", minHeight: 72, borderWidth: 1, borderRadius: 14, padding: 10, justifyContent: "center" },
+  adminSummaryItem: { width: "48%", minHeight: 72, borderWidth: 0, borderRadius: 14, padding: 10, justifyContent: "center" },
   adminSummaryValue: { fontSize: 23, lineHeight: 27, fontWeight: "900" },
-  adminSummaryLabel: { fontSize: 11, lineHeight: 15, marginTop: 3 },
+  adminSummaryLabel: { fontSize: 11, lineHeight: 15, marginTop: 3, fontWeight: "900", color: "#000000" },
   emailLogBox: { borderTopWidth: 1, marginTop: 14, paddingTop: 12 },
   emailLogTitle: { fontSize: 13, fontWeight: "900", marginBottom: 6 },
   emailLogRow: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 7 },
@@ -354,7 +381,7 @@ const styles = StyleSheet.create({
   chartSubtitle: { fontSize: 11, lineHeight: 16, marginTop: 3, marginBottom: 10 },
   chartGroupLabel: { fontSize: 12, fontWeight: "900", marginTop: 12, marginBottom: 5 },
   chartRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 27 },
-  chartLabel: { width: 108, fontSize: 11, fontWeight: "700" },
+  chartLabel: { width: 108, fontSize: 11, fontWeight: "900", color: "#000000" },
   chartTrack: { flex: 1, height: 8, borderRadius: 5, overflow: "hidden" },
   chartBar: { height: "100%", borderRadius: 5, minWidth: 3 },
   chartValue: { width: 24, textAlign: "right", fontSize: 12, fontWeight: "900" },
@@ -376,10 +403,10 @@ const styles = StyleSheet.create({
   filterSummary: { fontSize: 12, fontWeight: "900", color: "#000000" },
   filterLabel: { fontSize: 11, fontWeight: "900", color: "#000000", marginTop: -9 },
   metrics: { flexDirection: "row", gap: 10 },
-  metric: { flex: 1, borderRadius: 20, borderWidth: 1, padding: 14, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  metric: { flex: 1, borderRadius: 20, borderWidth: 0, padding: 14, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   metricIcon: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 10 },
   metricValue: { fontSize: 27, lineHeight: 32, fontWeight: "900" },
-  metricLabel: { fontSize: 11, marginTop: 3 },
+  metricLabel: { fontSize: 11, marginTop: 3, fontWeight: "900", color: "#000000" },
   filterRow: { flexDirection: "row", gap: 7, borderBottomWidth: 1, paddingBottom: 3 },
   filter: { borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 9 },
   filterText: { fontSize: 12, fontWeight: "900", color: "#000000" },
@@ -391,7 +418,7 @@ const styles = StyleSheet.create({
   queueRequester: { fontSize: 12, fontWeight: "800", marginTop: 5 },
   queueTime: { fontSize: 11, marginRight: 8 },
   statusBadge: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginTop: 8 },
-  statusBadgeText: { fontSize: 10, fontWeight: "900" },
+  statusBadgeText: { fontSize: 10, fontWeight: "900", color: "#000000" },
   visibleDelete: { borderWidth: 1, borderRadius: 10, minHeight: 34, paddingHorizontal: 9, alignItems: "center", justifyContent: "center", marginLeft: 6 },
   visibleDeleteText: { fontSize: 10, fontWeight: "900" },
   moreButton: { borderRadius: 10, minHeight: 34, paddingHorizontal: 9, alignItems: "center", justifyContent: "center", marginLeft: 6 },
