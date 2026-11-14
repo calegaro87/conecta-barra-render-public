@@ -18,6 +18,7 @@ import { CATEGORY_VALUES } from "../shared/categories";
 import { composeAddress, matchNeighborhood, normalizeName } from "../shared/neighborhoods";
 import { OFFICIAL_CHANNELS } from "../shared/official";
 import { sendNewRegistrationAdminEmail, sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const categorySchema = z.enum(CATEGORY_VALUES);
 const addressSchema = {
@@ -38,10 +39,20 @@ const residentStatusSchema = z.enum(["pending", "approved", "blocked"]);
 const scrypt = promisify(scryptCallback);
 
 function ensureApprovedResident(user: { role: "user" | "admin"; residentStatus: "pending" | "approved" | "blocked" }) {
-  if (user.role === "user" && user.residentStatus !== "approved") {
-    throw new TRPCError({ code: "FORBIDDEN", message: user.residentStatus === "blocked" ? "Seu cadastro está bloqueado. Procure a gestão do Conecta Barra." : "Seu cadastro aguarda aprovação da gestão." });
+  if (user.role === "user" && user.residentStatus === "blocked") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Seu cadastro está bloqueado. Procure a gestão do Conecta Barra." });
   }
 }
+
+async function ensureResidentProfileComplete(user: { id: number; role: "user" | "admin"; residentStatus: "pending" | "approved" | "blocked" }) {
+  ensureApprovedResident(user);
+  if (user.role !== "user") return;
+  const credential = await db.getResidentCredentialByUserId(user.id);
+  const complete = Boolean(credential?.username && credential.address && credential.cep && credential.street && credential.number && credential.neighborhood && credential.phone && credential.sex);
+  if (!complete) throw new TRPCError({ code: "FORBIDDEN", message: "Complete seus dados cadastrais no perfil antes de usar os serviços." });
+}
+
+const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 
 type AdminAuditInput = {
   action: string;
@@ -100,7 +111,7 @@ export const appRouter = router({
       const neighborhood = await canonicalNeighborhood(input.neighborhood);
       const address = composeAddress({ street: input.street, number: input.number, complement: input.complement, neighborhood, cep: input.cep });
       const openId = `local_${username}`;
-      await db.upsertUser({ openId, name: input.name, email: email || null, loginMethod: "local", role: "user", residentStatus: "pending", lastSignedIn: new Date() });
+      await db.upsertUser({ openId, name: input.name, email: email || null, loginMethod: "local", role: "user", residentStatus: "approved", lastSignedIn: new Date() });
       const user = await db.getUserByOpenId(openId);
       if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o usuário." });
       try {
@@ -205,13 +216,52 @@ export const appRouter = router({
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "Usuário não encontrado." });
       const pendingEmailVerification = credential.email ? await db.getLatestEmailVerificationCode(user.id) : undefined;
       if (pendingEmailVerification && !credential.emailVerifiedAt) throw new TRPCError({ code: "FORBIDDEN", message: "Confirme seu e-mail pelo código recebido antes de entrar." });
-      if (user.residentStatus !== "approved") {
-        throw new TRPCError({ code: "FORBIDDEN", message: user.residentStatus === "blocked" ? "Seu cadastro está bloqueado. Procure a gestão do Conecta Barra." : "Seu cadastro ainda aguarda aprovação da gestão." });
-      }
+      ensureApprovedResident(user);
       const token = await sdk.signSession({ openId: user.openId, appId: "conecta-barra", name: user.name ?? input.username });
       await persistSession(user.id, token, ctx.req);
       ctx.res.cookie("app_session_id", token, getSessionCookieOptions(ctx.req));
       return { user, token };
+    }),
+    loginGoogle: publicProcedure.input(z.object({ idToken: z.string().min(100).max(8192) })).mutation(async ({ ctx, input }) => {
+      if (!ENV.googleWebClientId && !ENV.googleAndroidClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login Google ainda não está configurado no servidor." });
+      let payload: Record<string, unknown>;
+      try {
+        const verified = await jwtVerify(input.idToken, googleKeys, {
+          issuer: ["https://accounts.google.com", "accounts.google.com"],
+          audience: [ENV.googleWebClientId, ENV.googleAndroidClientId].filter(Boolean),
+        });
+        payload = verified.payload as Record<string, unknown>;
+      } catch {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Token Google inválido ou expirado." });
+      }
+      const sub = typeof payload.sub === "string" ? payload.sub : "";
+      const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+      if (!sub || !email || payload.email_verified !== true) throw new TRPCError({ code: "UNAUTHORIZED", message: "A conta Google não forneceu um e-mail verificado." });
+      const openId = `google_${sub}`;
+      const existingByGoogle = await db.getUserByOpenId(openId);
+      const existingCredential = await db.getResidentCredentialByEmail(email);
+      let user = existingByGoogle ?? (existingCredential?.userId ? await db.getUserById(existingCredential.userId) : undefined) ?? await db.getUserByEmail(email);
+      if (!user) {
+        const name = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : email.split("@")[0];
+        await db.upsertUser({ openId, name, email, loginMethod: "google", role: "user", residentStatus: "approved", lastSignedIn: new Date() });
+        user = await db.getUserByOpenId(openId);
+        if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o acesso Google." });
+        const username = `google_${sub}`.slice(0, 64);
+        await db.createResidentCredential({ userId: user.id, username, passwordHash: await hashPassword(randomBytes(32).toString("hex")), address: null, cep: null, street: null, number: null, neighborhood: null, phone: "", sex: "prefer_not_to_say", email, emailVerifiedAt: new Date() });
+      } else {
+        await db.upsertUser({ openId: user.openId, name: (typeof payload.name === "string" && payload.name.trim()) ? payload.name.trim() : user.name, email, loginMethod: "google", lastSignedIn: new Date() });
+        user = await db.getUserById(user.id) ?? user;
+        const credential = await db.getResidentCredentialByUserId(user.id);
+        if (!credential) {
+          await db.createResidentCredential({ userId: user.id, username: `google_${sub}`.slice(0, 64), passwordHash: await hashPassword(randomBytes(32).toString("hex")), address: null, cep: null, street: null, number: null, neighborhood: null, phone: "", sex: "prefer_not_to_say", email, emailVerifiedAt: new Date() });
+        }
+      }
+      ensureApprovedResident(user);
+      const token = await sdk.signSession({ openId: user.openId, appId: "conecta-barra", name: user.name ?? email });
+      await persistSession(user.id, token, ctx.req);
+      ctx.res.cookie("app_session_id", token, getSessionCookieOptions(ctx.req));
+      const credential = await db.getResidentCredentialByUserId(user.id);
+      return { user, token, profileComplete: Boolean(credential?.username && credential.address && credential.cep && credential.street && credential.number && credential.neighborhood && credential.phone && credential.sex) };
     }),
     me: publicProcedure.query(async (opts) => {
       if (!opts.ctx.user) return null;
@@ -263,16 +313,16 @@ export const appRouter = router({
     unregisterDevice: protectedProcedure.input(z.object({ token: z.string().min(20).max(512) })).mutation(({ ctx, input }) => db.deleteNotificationToken(ctx.user.id, input.token)),
     testPush: adminProcedure.mutation(({ ctx }) => notifyTestPush(ctx.user.id)),
     list: protectedProcedure.query(async ({ ctx }) => {
-      ensureApprovedResident(ctx.user);
+      await ensureResidentProfileComplete(ctx.user);
       const items = await db.listAppNotifications(ctx.user.id);
       return items.map((item) => ({
         ...item,
         data: item.data ? (() => { try { return JSON.parse(item.data); } catch { return {}; } })() : {},
       }));
     }),
-    weeklySummary: protectedProcedure.query(({ ctx }) => { ensureApprovedResident(ctx.user); return db.getWeeklyNotificationSummary(ctx.user.id); }),
+    weeklySummary: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); return db.getWeeklyNotificationSummary(ctx.user.id); }),
     trash: protectedProcedure.query(async ({ ctx }) => {
-      ensureApprovedResident(ctx.user);
+      await ensureResidentProfileComplete(ctx.user);
       const items = await db.listTrashedAppNotifications(ctx.user.id);
       return items.map((item) => ({
         ...item,
@@ -290,12 +340,12 @@ export const appRouter = router({
     // Compatibilidade com versões anteriores: o apagar antigo agora envia para a lixeira.
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => db.moveAppNotificationToTrash(ctx.user.id, input.id)),
     deleteMany: protectedProcedure.input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(100) })).mutation(({ ctx, input }) => db.moveAppNotificationsToTrash(ctx.user.id, input.ids)),
-    preferences: protectedProcedure.query(({ ctx }) => { ensureApprovedResident(ctx.user); return db.listNotificationPreferences(ctx.user.id); }),
-    updatePreference: protectedProcedure.input(z.object({ category: z.enum(["announcements", "requests", "suggestions", "account"]), enabled: z.boolean() })).mutation(({ ctx, input }) => { ensureApprovedResident(ctx.user); return db.upsertNotificationPreference(ctx.user.id, input.category, input.enabled); }),
+    preferences: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); return db.listNotificationPreferences(ctx.user.id); }),
+    updatePreference: protectedProcedure.input(z.object({ category: z.enum(["announcements", "requests", "suggestions", "account"]), enabled: z.boolean() })).mutation(async ({ ctx, input }) => { await ensureResidentProfileComplete(ctx.user); return db.upsertNotificationPreference(ctx.user.id, input.category, input.enabled); }),
   }),
   requests: router({
-    mine: protectedProcedure.query(({ ctx }) => { ensureApprovedResident(ctx.user); return db.listUserRequests(ctx.user.id); }),
-    activity: protectedProcedure.query(async ({ ctx }) => { ensureApprovedResident(ctx.user); const [residentRequests, statusUpdates] = await Promise.all([db.listUserRequests(ctx.user.id), db.listUserRequestUpdates(ctx.user.id)]); return { requests: residentRequests, updates: statusUpdates }; }),
+    mine: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); return db.listUserRequests(ctx.user.id); }),
+    activity: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); const [residentRequests, statusUpdates] = await Promise.all([db.listUserRequests(ctx.user.id), db.listUserRequestUpdates(ctx.user.id)]); return { requests: residentRequests, updates: statusUpdates }; }),
     create: protectedProcedure.input(z.object({
       category: categorySchema,
       description: z.string().min(10).max(5000),
@@ -308,7 +358,7 @@ export const appRouter = router({
       photoContentType: z.enum(["image/jpeg", "image/png", "image/webp"]).optional(),
       clientOperationId: z.string().min(16).max(128).optional(),
     })).mutation(async ({ ctx, input }) => {
-      ensureApprovedResident(ctx.user);
+      await ensureResidentProfileComplete(ctx.user);
       const { photoDataBase64, photoContentType, clientOperationId, ...requestData } = input;
       if (clientOperationId) {
         const previous = await db.getClientOperation(ctx.user.id, clientOperationId);
@@ -352,13 +402,13 @@ export const appRouter = router({
       }
       return { success: true, count: input.ids.length } as const;
     }),
-    updateMine: protectedProcedure.input(z.object({ id: z.number().int().positive(), category: categorySchema, description: z.string().min(10).max(5000), fullAddress: z.string().min(5).max(1000), referencePoint: z.string().max(500).optional() })).mutation(async ({ ctx, input }) => { ensureApprovedResident(ctx.user); const { id, ...data } = input; return db.updateOwnRequest(ctx.user.id, id, data); }),
+    updateMine: protectedProcedure.input(z.object({ id: z.number().int().positive(), category: categorySchema, description: z.string().min(10).max(5000), fullAddress: z.string().min(5).max(1000), referencePoint: z.string().max(500).optional() })).mutation(async ({ ctx, input }) => { await ensureResidentProfileComplete(ctx.user); const { id, ...data } = input; return db.updateOwnRequest(ctx.user.id, id, data); }),
   }),
   suggestions: router({
-    mine: protectedProcedure.query(({ ctx }) => { ensureApprovedResident(ctx.user); return db.listUserSuggestions(ctx.user.id); }),
-    create: protectedProcedure.input(z.object({ title: z.string().min(3).max(255), description: z.string().min(10).max(5000), photoUrl: z.string().url().optional() })).mutation(async ({ ctx, input }) => { ensureApprovedResident(ctx.user); const neighborhood = await db.getUserNeighborhood(ctx.user.id); const suggestionId = await db.createSuggestion({ ...input, neighborhood, userId: ctx.user.id }); emit({ scopes: ["suggestions", "dashboard"], admins: true, userIds: [ctx.user.id] }); void notifyNewSuggestion({ suggestionId, residentName: ctx.user.name ?? undefined, title: input.title }); return suggestionId; }),
+    mine: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); return db.listUserSuggestions(ctx.user.id); }),
+    create: protectedProcedure.input(z.object({ title: z.string().min(3).max(255), description: z.string().min(10).max(5000), photoUrl: z.string().url().optional() })).mutation(async ({ ctx, input }) => { await ensureResidentProfileComplete(ctx.user); const neighborhood = await db.getUserNeighborhood(ctx.user.id); const suggestionId = await db.createSuggestion({ ...input, neighborhood, userId: ctx.user.id }); emit({ scopes: ["suggestions", "dashboard"], admins: true, userIds: [ctx.user.id] }); void notifyNewSuggestion({ suggestionId, residentName: ctx.user.name ?? undefined, title: input.title }); return suggestionId; }),
     update: adminProcedure.input(z.object({ id: z.number().int().positive(), title: z.string().min(3).max(255), description: z.string().min(10).max(5000) })).mutation(async ({ ctx, input }) => { const userId = await db.getSuggestionOwnerId(input.id); await db.updateSuggestion(input.id, { title: input.title, description: input.description }); if (userId) void notifySuggestionUpdated({ userId, suggestionId: input.id, title: input.title }); void recordAdminAction(ctx.user.id, { action: "suggestion_update", targetType: "suggestion", targetId: input.id, targetUserId: userId, summary: `Sugestão #${input.id} atualizada.`, metadata: { title: input.title } }); return { success: true } as const; }),
-    updateMine: protectedProcedure.input(z.object({ id: z.number().int().positive(), title: z.string().min(3).max(255), description: z.string().min(10).max(5000) })).mutation(async ({ ctx, input }) => { ensureApprovedResident(ctx.user); return db.updateOwnSuggestion(ctx.user.id, input.id, { title: input.title, description: input.description }); }),
+    updateMine: protectedProcedure.input(z.object({ id: z.number().int().positive(), title: z.string().min(3).max(255), description: z.string().min(10).max(5000) })).mutation(async ({ ctx, input }) => { await ensureResidentProfileComplete(ctx.user); return db.updateOwnSuggestion(ctx.user.id, input.id, { title: input.title, description: input.description }); }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { const targetUserId = await db.getSuggestionOwnerId(input.id); await db.deleteSuggestion(input.id); void recordAdminAction(ctx.user.id, { action: "suggestion_delete", targetType: "suggestion", targetId: input.id, targetUserId, summary: `Sugestão #${input.id} excluída.`, metadata: {} }); return { success: true } as const; }),
     all: adminProcedure.input(z.object({ neighborhood: z.string().max(120).optional() }).optional()).query(async ({ input }) => {
       const database = await db.getDb();
@@ -369,8 +419,8 @@ export const appRouter = router({
     }),
   }),
   announcements: router({
-    list: protectedProcedure.query(async ({ ctx }) => { ensureApprovedResident(ctx.user); const credential = ctx.user.role === "user" ? await db.getResidentCredentialByUserId(ctx.user.id) : undefined; return db.listAnnouncements(ctx.user.id, ctx.user.role, credential?.neighborhood); }),
-    like: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { ensureApprovedResident(ctx.user); const result = await db.toggleAnnouncementLike(input.id, ctx.user.id); emit({ scopes: ["announcements"], everyone: true }); return result; }),
+    list: protectedProcedure.query(async ({ ctx }) => { await ensureResidentProfileComplete(ctx.user); const credential = ctx.user.role === "user" ? await db.getResidentCredentialByUserId(ctx.user.id) : undefined; return db.listAnnouncements(ctx.user.id, ctx.user.role, credential?.neighborhood); }),
+    like: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await ensureResidentProfileComplete(ctx.user); const result = await db.toggleAnnouncementLike(input.id, ctx.user.id); emit({ scopes: ["announcements"], everyone: true }); return result; }),
     likeUsers: adminProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => db.listAnnouncementLikeUsers(input.id)),
     create: adminProcedure.input(z.object({ title: z.string().min(3).max(255), content: z.string().min(10).max(10000), category: z.enum(["event", "notice", "urgent", "general", "civil_defense"]), audience: z.enum(["all", "residents", "admins"]).default("all"), neighborhood: z.string().max(120).optional() })).mutation(async ({ ctx, input }) => { const announcementId = await db.createAnnouncement({ ...input, neighborhood: input.neighborhood?.trim() || null, adminId: ctx.user.id }); emit({ scopes: ["announcements"], neighborhood: input.neighborhood?.trim() || null });
  void notifyAnnouncement({ announcementId, title: input.title, category: input.category, neighborhood: input.neighborhood?.trim() || null }); void recordAdminAction(ctx.user.id, { action: "announcement_create", targetType: "announcement", targetId: announcementId, summary: `Comunicado “${input.title}” publicado.`, metadata: { category: input.category, audience: input.audience, neighborhood: input.neighborhood ?? null } }); return announcementId; }),
@@ -447,7 +497,7 @@ export const appRouter = router({
     setActive: adminProcedure.input(z.object({ id: z.number().int().positive(), active: z.boolean() })).mutation(async ({ input }) => { await db.setNeighborhoodActive(input.id, input.active); emit({ scopes: ["neighborhoods"], everyone: true }); return { success: true } as const; }),
     /** Painel do bairro: números agregados e anônimos. */
     overview: protectedProcedure.input(z.object({ neighborhood: z.string().min(2).max(120).optional() }).optional()).query(async ({ ctx, input }) => {
-      ensureApprovedResident(ctx.user);
+      await ensureResidentProfileComplete(ctx.user);
       const own = ctx.user.role === "user" ? await db.getUserNeighborhood(ctx.user.id) : null;
       const target = input?.neighborhood ?? own;
       if (!target) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe um bairro no seu perfil para ver o painel." });

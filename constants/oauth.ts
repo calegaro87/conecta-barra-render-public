@@ -27,3 +27,7 @@ export function getWsUrl(): string {
 
 export const SESSION_TOKEN_KEY = "conecta_session_token";
 export const USER_INFO_KEY = "conecta_user_info";
+
+// IDs OAuth públicos: não são chaves secretas. A validação real do id_token ocorre no backend.
+export const GOOGLE_WEB_CLIENT_ID = "470980545863-kf726hfmdfk6mml19dnc91fdk6i3u06n.apps.googleusercontent.com";
+export const GOOGLE_ANDROID_CLIENT_ID = "470980545863-6588dkfremjlpl95ib1a8aespc2fcbmq.apps.googleusercontent.com";

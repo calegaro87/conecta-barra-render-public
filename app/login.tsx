@@ -20,6 +20,11 @@ import { AddressFields, emptyAddress, isAddressComplete, type AddressValue } fro
 import { SelectionField } from "@/components/selection-field";
 import { BRAND } from "@/constants/brand";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from "@/constants/oauth";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -52,7 +57,12 @@ export default function LoginScreen() {
   const [verificationUsername, setVerificationUsername] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationVisible, setVerificationVisible] = useState(false);
-  const persistSessionAndOpenHome = async (result: { user: any; token: string }, message: string) => {
+  const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+  });
+  const persistSessionAndOpenHome = async (result: { user: any; token: string }, message: string, profileComplete = true) => {
     if (rememberMe) await AsyncStorage.multiSet([["dm_saved_username", username.trim()], ["dm_remember_me", "true"]]);
     else await AsyncStorage.multiRemove(["dm_saved_username", "dm_remember_me"]);
     await setSessionToken(result.token);
@@ -61,14 +71,14 @@ export default function LoginScreen() {
       const [hardware, enrolled] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
       if (hardware && enrolled) {
         Alert.alert("Ativar login biométrico?", "Na próxima vez, você poderá entrar com digital ou reconhecimento facial. A senha não será armazenada.", [
-          { text: "Agora não", style: "cancel", onPress: () => router.replace(result.user.role === "admin" ? "/admin" : "/(tabs)") },
-          { text: "Ativar", onPress: () => { void (async () => { await setBiometricSession(result.token, result.user); setBiometricAvailable(true); router.replace(result.user.role === "admin" ? "/admin" : "/(tabs)"); })(); } },
+          { text: "Agora não", style: "cancel", onPress: () => router.replace(result.user.role === "admin" ? "/admin" : profileComplete ? "/(tabs)" : "/(tabs)/profile") },
+          { text: "Ativar", onPress: () => { void (async () => { await setBiometricSession(result.token, result.user); setBiometricAvailable(true); router.replace(result.user.role === "admin" ? "/admin" : profileComplete ? "/(tabs)" : "/(tabs)/profile"); })(); } },
         ]);
         return;
       }
     }
     Alert.alert(message, `Olá, ${result.user.name ?? username}!`);
-    router.replace(result.user.role === "admin" ? "/admin" : "/(tabs)");
+    router.replace(result.user.role === "admin" ? "/admin" : profileComplete ? "/(tabs)" : "/(tabs)/profile");
   };
   const loginWithBiometric = async () => {
     if (biometricPending || Platform.OS === "web") return;
@@ -114,6 +124,10 @@ export default function LoginScreen() {
     onSuccess: (result) => { void persistSessionAndOpenHome(result, "Bem-vindo"); },
     onError: (error) => Alert.alert("Não foi possível entrar", friendlyError(error)),
   });
+  const googleLogin = trpc.auth.loginGoogle.useMutation({
+    onSuccess: (result) => { void persistSessionAndOpenHome(result, "Login Google concluído", result.profileComplete); },
+    onError: (error) => Alert.alert("Não foi possível entrar com Google", friendlyError(error)),
+  });
   const register = trpc.auth.register.useMutation({
     onSuccess: (result) => { setVerificationUsername(result.username); setVerificationCode(""); setVerificationVisible(true); },
     onError: (error) => Alert.alert("Não foi possível cadastrar", friendlyError(error)),
@@ -142,7 +156,12 @@ export default function LoginScreen() {
     }
   };
 
-  const busy = login.isPending || register.isPending;
+  useEffect(() => {
+    if (googleResponse?.type !== "success") return;
+    const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+    if (idToken) googleLogin.mutate({ idToken });
+  }, [googleResponse]);
+  const busy = login.isPending || register.isPending || googleLogin.isPending;
   const verificationBusy = verifyEmail.isPending || resendVerification.isPending;
   useEffect(() => { if (biometricAvailable && autoPrompt.current && !registering) { autoPrompt.current = false; void loginWithBiometric(); } }, [biometricAvailable]); // eslint-disable-line react-hooks/exhaustive-deps
   if (verificationVisible) {
@@ -186,6 +205,13 @@ export default function LoginScreen() {
               <Pressable accessibilityRole="button" accessibilityLabel="Entrar com biometria" onPress={() => void loginWithBiometric()} disabled={biometricPending} style={({ pressed }) => [ns.bioButton, { backgroundColor: colors.primary + "14", borderColor: colors.primary }, pressed && { opacity: 0.75 }]}>
                 <IconSymbol name="fingerprint" size={34} color={colors.primary} />
                 <View style={{ flex: 1 }}><Text style={[ns.bioTitle, { color: colors.primary }]}>{biometricPending ? "Verificando…" : "Entrar com biometria"}</Text><Text style={[ns.bioHint, { color: colors.muted }]}>Digital ou reconhecimento facial</Text></View>
+              </Pressable>
+            )}
+
+            {!registering && (
+              <Pressable accessibilityRole="button" disabled={!googleRequest || busy} onPress={() => void promptGoogle()} style={({ pressed }) => [ns.googleButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && { opacity: 0.75 }]}>
+                <Text style={ns.googleMark}>G</Text>
+                <Text style={[ns.googleLabel, { color: colors.foreground }]}>{googleLogin.isPending ? "Entrando com Google…" : "Continuar com Google"}</Text>
               </Pressable>
             )}
 
@@ -291,6 +317,9 @@ const ns = StyleSheet.create({
   field: { minHeight: 54, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 15 },
   bioButton: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1.5, borderRadius: 22, padding: 14, marginBottom: 6, shadowColor: "#0B3B8C", shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
   bioTitle: { fontSize: 16, fontWeight: "900" }, bioHint: { fontSize: 12 },
+  googleButton: { minHeight: 54, borderWidth: 1, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 4 },
+  googleMark: { color: "#4285F4", fontSize: 22, fontWeight: "900" },
+  googleLabel: { fontSize: 15, fontWeight: "800" },
   sexRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   sexChip: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
   rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },

@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   name: "Conecta Barra",
   slug: "conecta-barra",
   owner: "conectabarras-team",
-  version: "1.0.4",
+  version: "1.0.5",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "conectabarra",
@@ -28,7 +28,7 @@ const config: ExpoConfig = {
   ios: { supportsTablet: true, bundleIdentifier: PACKAGE_ID, infoPlist: { ITSAppUsesNonExemptEncryption: false } },
   android: {
     package: PACKAGE_ID,
-    versionCode: 5,
+    versionCode: 6,
     adaptiveIcon: {
       backgroundImage: "./assets/images/android-icon-background.png",
       foregroundImage: "./assets/images/android-icon-foreground.png",

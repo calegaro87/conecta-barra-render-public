@@ -28,5 +28,7 @@ export const ENV = {
   adminUsername: process.env.ADMIN_USERNAME?.trim() ?? "",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() ?? "",
+  googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID?.trim() ?? "",
+  googleAndroidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() ?? "",
   whatsappUrl: process.env.OFFICIAL_WHATSAPP_URL?.trim() ?? "",
 };

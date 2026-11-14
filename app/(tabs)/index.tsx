@@ -31,13 +31,13 @@ export default function HomeScreen() {
   const user = me.data;
   const authed = Boolean(user?.id);
   const isAdmin = user?.role === "admin";
-  const approved = isAdmin || user?.residentStatus === "approved";
-  const pending = authed && user?.role === "user" && user?.residentStatus === "pending";
+  const approved = isAdmin || (authed && user?.residentStatus !== "blocked");
   const blocked = authed && user?.role === "user" && user?.residentStatus === "blocked";
+  const profileComplete = Boolean(isAdmin || (user?.name && user.phone && user.cep && user.street && user.number && user.neighborhood && user.sex));
   const bairro = user?.neighborhood ?? null;
 
-  const requests = trpc.requests.mine.useQuery(undefined, { enabled: authed && approved && !isAdmin, staleTime: 2_000, retry: 1, refetchInterval: 60_000 });
-  const announcements = trpc.announcements.list.useQuery(undefined, { enabled: authed && approved, staleTime: 2_000, retry: 1, refetchInterval: 60_000 });
+  const requests = trpc.requests.mine.useQuery(undefined, { enabled: authed && approved && profileComplete && !isAdmin, staleTime: 2_000, retry: 1, refetchInterval: 60_000 });
+  const announcements = trpc.announcements.list.useQuery(undefined, { enabled: authed && approved && profileComplete, staleTime: 2_000, retry: 1, refetchInterval: 60_000 });
   const social = trpc.social.get.useQuery();
   const logout = trpc.auth.logout.useMutation();
 
@@ -47,7 +47,8 @@ export default function HomeScreen() {
 
   const go = (path: string) => {
     if (!authed) return router.push("/login");
-    if (!approved) return Alert.alert(blocked ? "Cadastro bloqueado" : "Aguardando aprovação", blocked ? "Procure a gestão do Conecta Barra para regularizar o acesso." : "A gestão precisa aprovar seu cadastro antes de liberar os serviços.");
+    if (!approved) return Alert.alert("Cadastro bloqueado", "Procure a gestão do Conecta Barra para regularizar o acesso.");
+    if (!profileComplete) return Alert.alert("Complete seus dados", "Preencha seu nome, telefone e endereço completo no Meu perfil antes de usar os serviços.", [{ text: "Agora não", style: "cancel" }, { text: "Abrir perfil", onPress: () => router.push("/(tabs)/profile") }]);
     router.push(path as never);
   };
   const signOut = () => Alert.alert("Sair da conta?", "Você poderá entrar novamente quando quiser.", [
@@ -81,7 +82,6 @@ export default function HomeScreen() {
         </GradientHeader>
 
         <View style={styles.body}>
-          {pending && <View style={[styles.notice, { backgroundColor: colors.warning + "18", borderColor: colors.warning }]}><Text style={{ color: colors.warning, fontWeight: "900" }}>Cadastro em análise</Text><Text style={{ color: colors.foreground, fontSize: 13, marginTop: 2 }}>A gestão ainda precisa aprovar seu acesso. Você será avisado por notificação.</Text></View>}
           {blocked && <View style={[styles.notice, { backgroundColor: colors.error + "18", borderColor: colors.error }]}><Text style={{ color: colors.error, fontWeight: "900" }}>Cadastro bloqueado</Text><Text style={{ color: colors.foreground, fontSize: 13, marginTop: 2 }}>Procure a gestão do Conecta Barra para regularizar o acesso.</Text></View>}
 
           {urgent.map((item) => (

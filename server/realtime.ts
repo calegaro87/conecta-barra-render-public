@@ -23,8 +23,6 @@ export function emit(target: RealtimeTarget) {
   const payload = JSON.stringify({ type: "invalidate", scopes: target.scopes, at: Date.now() });
   for (const client of clients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
-    // Cadastro ainda pendente: só recebe eventos endereçados a ele (ex.: "sua conta foi aprovada").
-    if (client.limited && !(target.userIds?.includes(client.userId) ?? false)) continue;
     const match =
       target.everyone ||
       (target.userIds?.includes(client.userId) ?? false) ||
@@ -66,9 +64,9 @@ export function attachRealtime(server: Server) {
         const message = JSON.parse(raw.toString()) as { type?: string; token?: string };
         if (message.type !== "auth" || !message.token) throw new Error("bad auth");
         const user = await sdk.authenticateToken(message.token);
-        if (user.role === "user" && user.residentStatus !== "approved" && user.residentStatus !== "pending") throw new Error("not allowed");
+        if (user.role === "user" && user.residentStatus === "blocked") throw new Error("not allowed");
         const neighborhood = user.role === "user" ? await db.getUserNeighborhood(user.id).catch(() => null) : null;
-        client = { ws, userId: user.id, role: user.role, neighborhood, alive: true, limited: user.role === "user" && user.residentStatus !== "approved" };
+        client = { ws, userId: user.id, role: user.role, neighborhood, alive: true, limited: false };
         // Limita conexões por usuário (aparelho antigo "preso" não acumula): fecha as mais antigas.
         const mine = [...clients].filter((item) => item.userId === user.id);
         for (const old of mine.slice(0, Math.max(0, mine.length - (MAX_CONNECTIONS_PER_USER - 1)))) { try { old.ws.close(1000, "replaced"); } catch { /* ignorado */ } clients.delete(old); }

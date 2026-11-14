@@ -64,7 +64,7 @@ export function ScreenContainer({
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 24}
         >
           <View className={cn("flex-1", className)}>{children}</View>
         </KeyboardAvoidingView>

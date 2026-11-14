@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2/promise";
 import {
@@ -107,6 +107,20 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result[0];
+}
+
+export async function getUserById(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return result[0];
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return result[0];
 }
 
@@ -231,11 +245,14 @@ export async function listNotificationRecipients(roles?: Array<"user" | "admin">
   const database = await getDb();
   if (!database) return [];
   const roleCondition = roles?.length ? inArray(users.role, roles) : undefined;
-  if (!neighborhood) return database.select({ userId: users.id, role: users.role }).from(users).where(roleCondition);
-  // Comunicado de um bairro: só moradores aprovados daquele bairro (administradores continuam recebendo).
+  // Moradores pendentes também recebem avisos; somente usuários bloqueados ficam fora.
   const rows = await database.select({ userId: users.id, role: users.role, status: users.residentStatus, neighborhood: residentCredentials.neighborhood })
     .from(users).leftJoin(residentCredentials, eq(users.id, residentCredentials.userId)).where(roleCondition);
-  return rows.filter((row) => row.role === "admin" || (row.status === "approved" && normalizeName(row.neighborhood) === normalizeName(neighborhood))).map(({ userId, role }) => ({ userId, role }));
+  return rows.filter((row) => {
+    if (row.status === "blocked") return false;
+    if (!neighborhood || row.role === "admin") return true;
+    return normalizeName(row.neighborhood) === normalizeName(neighborhood);
+  }).map(({ userId, role }) => ({ userId, role }));
 }
 
 export async function getUserNeighborhood(userId: number) {
@@ -277,7 +294,7 @@ export async function getNeighborhoodOverview(neighborhood: string) {
   const database = await getDb();
   if (!database) return { neighborhood, total: 0, open: 0, completed: 0, residents: 0, byCategory: [] as { category: string; value: number }[], recent: [] as { id: number; category: string; status: string; createdAt: Date }[] };
   const rows = await database.select({ id: requests.id, category: requests.category, status: requests.status, createdAt: requests.createdAt }).from(requests).where(eq(requests.neighborhood, neighborhood)).orderBy(desc(requests.createdAt));
-  const residents = await database.select({ value: count() }).from(residentCredentials).innerJoin(users, eq(users.id, residentCredentials.userId)).where(and(eq(residentCredentials.neighborhood, neighborhood), eq(users.residentStatus, "approved")));
+  const residents = await database.select({ value: count() }).from(residentCredentials).innerJoin(users, eq(users.id, residentCredentials.userId)).where(and(eq(residentCredentials.neighborhood, neighborhood), not(eq(users.residentStatus, "blocked"))));
   const byCategory = new Map<string, number>();
   rows.forEach((row) => byCategory.set(row.category, (byCategory.get(row.category) ?? 0) + 1));
   return {
