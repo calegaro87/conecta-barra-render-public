@@ -78,6 +78,13 @@ export default function LoginScreen() {
     else await AsyncStorage.multiRemove(["dm_saved_username", "dm_remember_me"]);
     await setSessionToken(result.token);
     await setUserInfo(result.user);
+    // Uma conta Google nova precisa completar o cadastro antes de acessar a
+    // área inicial. Navegar diretamente evita que o estado inicial das abas
+    // devolva o usuário para a tela de início.
+    if (result.user.role !== "admin" && !profileComplete) {
+      router.replace("/(tabs)/profile");
+      return;
+    }
     if (Platform.OS !== "web" && !biometricAvailable) {
       const [hardware, enrolled] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
       if (hardware && enrolled) {
@@ -212,6 +219,7 @@ export default function LoginScreen() {
           <View style={[ns.sheet, { backgroundColor: colors.background }]}>
             <Text style={[ns.title, { color: colors.foreground }]}>{registering ? "Crie seu acesso" : "Bem-vindo de volta"}</Text>
             <Text style={[ns.sub, { color: colors.muted }]}>{registering ? "Crie seu acesso para acompanhar informações e serviços locais." : "Entre para acompanhar sua rua, seu bairro e os serviços disponíveis."}</Text>
+            {!registering && <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "900", marginTop: 8 }}>Acesso de gestão: @educalegaro</Text>}
 
             {!registering && biometricAvailable && (
               <Pressable accessibilityRole="button" accessibilityLabel="Entrar com biometria" onPress={() => void loginWithBiometric()} disabled={biometricPending} style={({ pressed }) => [ns.bioButton, { backgroundColor: colors.primary + "14", borderColor: colors.primary }, pressed && { opacity: 0.75 }]}>
@@ -268,8 +276,8 @@ export default function LoginScreen() {
             <Pressable accessibilityRole="button" onPress={submit} disabled={busy} style={({ pressed }) => [ns.submitWrap, (pressed || busy) && { opacity: 0.8 }]}>
               <LinearGradient colors={BRAND.gradientSoft} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={ns.submitGradient}>
                 <Text style={ns.submitLabel}>{busy ? "Aguarde…" : registering ? "Criar cadastro" : "Entrar"}</Text>
-              </LinearGradient>
-            </Pressable>
+          </LinearGradient>
+          </Pressable>
 
             <Pressable onPress={() => setRegistering((v) => !v)} style={ns.switch}><Text style={{ color: colors.primary, fontWeight: "800" }}>{registering ? "Já tenho cadastro • Entrar" : "Sou morador • Criar cadastro"}</Text></Pressable>
             <Text style={[ns.footer, { color: colors.muted }]}>Aplicativo para moradores de Barra do Piraí-RJ. Os dados do cadastro são usados apenas para autenticar o acesso e direcionar avisos do seu bairro.</Text>

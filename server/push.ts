@@ -31,8 +31,6 @@ type ExpoPushTicket = {
   details?: { error?: string };
 };
 
-type ExpoPushReceipt = { status: "ok" | "error"; message?: string; details?: { error?: string } };
-
 type PushDeliveryResult = {
   targeted: number;
   accepted: number;
@@ -57,7 +55,6 @@ function summarizeExpoHttpError(status: number, body: string) {
 }
 
 const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
-const EXPO_RECEIPTS_ENDPOINT = "https://exp.host/--/api/v2/push/getReceipts";
 
 function expoHeaders() {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
@@ -89,7 +86,6 @@ async function sendRemotePush(userIds: number[], notice: NoticeInput, options?: 
   const invalidTokens = new Set<string>();
   const errors = new Set<string>();
   let accepted = 0;
-  const ticketTokens = new Map<string, string>(); // ticketId -> token
 
   // Tokens antigos podem ter sido emitidos por outro projeto Expo após uma
   // migração de conta. O Expo rejeita um lote que mistura projetos; enviar
@@ -135,7 +131,6 @@ async function sendRemotePush(userIds: number[], notice: NoticeInput, options?: 
           const token = row.token;
           if (ticket.status === "ok") {
             accepted += 1;
-            if (ticket.id && token) ticketTokens.set(ticket.id, token);
             return;
           }
           const code = ticket.details?.error ?? "TicketError";
@@ -163,32 +158,11 @@ async function sendRemotePush(userIds: number[], notice: NoticeInput, options?: 
     }
   }));
 
+  // O ticket aceito já foi encaminhado ao FCM/APNs. A consulta síncrona de
+  // recibos acrescentava segundos ao envio e não acelera a chegada no aparelho.
+  // A limpeza de tokens inválidos continua sendo feita pelos erros do ticket.
   let delivered = accepted;
-  let receiptErrors = 0;
-  if (ticketTokens.size > 0) {
-    // Os recibos mostram o resultado real da entrega ao FCM/APNs (ex.: credenciais FCM ausentes).
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    try {
-      const receiptResponse = await fetch(EXPO_RECEIPTS_ENDPOINT, { method: "POST", headers: expoHeaders(), body: JSON.stringify({ ids: [...ticketTokens.keys()] }), signal: AbortSignal.timeout(15_000) });
-      if (!receiptResponse.ok) {
-        console.warn(`[Push] Receipt lookup returned HTTP ${receiptResponse.status}`);
-      } else {
-        const receiptPayload = (await receiptResponse.json()) as { data?: Record<string, ExpoPushReceipt> };
-        Object.entries(receiptPayload.data ?? {}).forEach(([ticketId, receipt]) => {
-          if (receipt.status !== "error") return;
-          delivered -= 1;
-          receiptErrors += 1;
-          const code = receipt.details?.error ?? "ReceiptError";
-          errors.add(code);
-          console.warn(`[Push] Receipt error (${code}): ${receipt.message ?? ""}`);
-          const token = ticketTokens.get(ticketId);
-          if ((code === "DeviceNotRegistered" || code === "MismatchSenderId") && token) invalidTokens.add(token);
-        });
-      }
-    } catch (error) {
-      console.warn("[Push] Receipt lookup failed:", error);
-    }
-  }
+  const receiptErrors = 0;
 
   if (invalidTokens.size > 0) await db.deleteNotificationTokens([...invalidTokens]);
   delivered = Math.max(delivered, 0);

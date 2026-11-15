@@ -3,8 +3,6 @@ import { BRAND } from "@/constants/brand";
 import { OFFICIAL_CONTACT } from "@/shared/official";
 
 const appIcon = require("@/assets/images/icon.png");
-// Substitua assets/brand/prefeitura-logo.png pelo logotipo oficial 2026 (mesmo nome de arquivo).
-const prefeituraLogo = require("@/assets/brand/prefeitura-logo.png");
 
 export function AppMark({ size = 64, radius }: { size?: number; radius?: number }) {
   return <Image source={appIcon} accessibilityLabel="Logotipo Conecta Barra" style={{ width: size, height: size, borderRadius: radius ?? size * 0.26 }} />;
@@ -15,10 +13,10 @@ export function PrefeituraBadge({ light = false, compact = false, style }: { lig
   const color = light ? "#FFFFFF" : BRAND.navy;
   return (
     <View style={[styles.row, style]} accessibilityLabel="Comunicação local">
-      <Image source={prefeituraLogo} resizeMode="contain" style={[styles.logo, compact && { width: 30, height: 30 }, light && styles.logoLight]} />
+      <Image source={appIcon} resizeMode="contain" style={[styles.logo, compact && { width: 30, height: 30 }, light && styles.logoLight]} />
       <View>
-        <Text style={[styles.small, { color, opacity: 0.8 }]}>Comunicação local de</Text>
-        <Text style={[styles.big, { color }]}>Barra do Piraí</Text>
+        <Text style={[styles.small, { color, opacity: 0.8 }]}>Comunicação local</Text>
+        <Text style={[styles.big, { color }]}>Conecta Barra</Text>
       </View>
     </View>
   );
