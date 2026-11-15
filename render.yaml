@@ -35,6 +35,10 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: GOOGLE_WEB_CLIENT_ID
+        value: "470980545863-kf726hfmdfk6mml19dnc91fdk6i3u06n.apps.googleusercontent.com"
+      - key: GOOGLE_ANDROID_CLIENT_ID
+        value: "470980545863-6588dkfremjlpl95ib1a8aespc2fcbmq.apps.googleusercontent.com"
       # Token do Expo para o envio de push (https://expo.dev → Account settings → Access tokens).
       - key: EXPO_ACCESS_TOKEN
         sync: false

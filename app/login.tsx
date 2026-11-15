@@ -71,6 +71,7 @@ export default function LoginScreen() {
     webClientId: GOOGLE_WEB_CLIENT_ID,
     scopes: ["openid", "profile", "email"],
     redirectUri: googleRedirectUri,
+    selectAccount: true,
     extraParams: { prompt: "select_account" },
   });
   const persistSessionAndOpenHome = async (result: { user: any; token: string }, message: string, profileComplete = true) => {
@@ -178,7 +179,14 @@ export default function LoginScreen() {
   useEffect(() => {
     if (googleResponse?.type !== "success") return;
     const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
-    if (idToken) googleLogin.mutate({ idToken });
+    const code = googleResponse.params?.code;
+    if (idToken) {
+      googleLogin.mutate({ idToken });
+    } else if (code) {
+      googleLogin.mutate({ code, redirectUri: googleRedirectUri });
+    } else {
+      Alert.alert("Não foi possível entrar com Google", "O Google não retornou um token de autenticação. Tente novamente e escolha uma conta.");
+    }
   }, [googleResponse]);
   const busy = login.isPending || register.isPending || googleLogin.isPending;
   const verificationBusy = verifyEmail.isPending || resendVerification.isPending;
@@ -219,8 +227,6 @@ export default function LoginScreen() {
           <View style={[ns.sheet, { backgroundColor: colors.background }]}>
             <Text style={[ns.title, { color: colors.foreground }]}>{registering ? "Crie seu acesso" : "Bem-vindo de volta"}</Text>
             <Text style={[ns.sub, { color: colors.muted }]}>{registering ? "Crie seu acesso para acompanhar informações e serviços locais." : "Entre para acompanhar sua rua, seu bairro e os serviços disponíveis."}</Text>
-            {!registering && <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "900", marginTop: 8 }}>Acesso de gestão: @educalegaro</Text>}
-
             {!registering && biometricAvailable && (
               <Pressable accessibilityRole="button" accessibilityLabel="Entrar com biometria" onPress={() => void loginWithBiometric()} disabled={biometricPending} style={({ pressed }) => [ns.bioButton, { backgroundColor: colors.primary + "14", borderColor: colors.primary }, pressed && { opacity: 0.75 }]}>
                 <IconSymbol name="fingerprint" size={34} color={colors.primary} />

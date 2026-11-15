@@ -224,11 +224,28 @@ export const appRouter = router({
       ctx.res.cookie("app_session_id", token, getSessionCookieOptions(ctx.req));
       return { user, token };
     }),
-    loginGoogle: publicProcedure.input(z.object({ idToken: z.string().min(100).max(8192) })).mutation(async ({ ctx, input }) => {
+    loginGoogle: publicProcedure.input(z.object({ idToken: z.string().min(100).max(8192).optional(), code: z.string().min(20).max(4096).optional(), redirectUri: z.string().min(1).max(1000).optional() }).refine((value) => Boolean(value.idToken || value.code), { message: "Token Google não informado." })).mutation(async ({ ctx, input }) => {
       if (!ENV.googleWebClientId && !ENV.googleAndroidClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login Google ainda não está configurado no servidor." });
       let payload: Record<string, unknown>;
       try {
-        const verified = await jwtVerify(input.idToken, googleKeys, {
+        let idToken = input.idToken;
+        if (!idToken && input.code) {
+          const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              code: input.code,
+              client_id: ENV.googleAndroidClientId || ENV.googleWebClientId,
+              redirect_uri: input.redirectUri ?? "",
+              grant_type: "authorization_code",
+            }).toString(),
+          });
+          if (!tokenResponse.ok) throw new Error(`Google token exchange failed (${tokenResponse.status})`);
+          const exchanged = await tokenResponse.json() as { id_token?: string };
+          idToken = exchanged.id_token;
+        }
+        if (!idToken) throw new Error("Google did not return an id_token");
+        const verified = await jwtVerify(idToken, googleKeys, {
           issuer: ["https://accounts.google.com", "accounts.google.com"],
           audience: [ENV.googleWebClientId, ENV.googleAndroidClientId].filter(Boolean),
         });
