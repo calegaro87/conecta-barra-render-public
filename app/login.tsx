@@ -59,7 +59,13 @@ export default function LoginScreen() {
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationVisible, setVerificationVisible] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const googleRedirectUri = makeRedirectUri({ native: GOOGLE_ANDROID_REDIRECT_URI });
+  // O cliente OAuth Android do Google exige o esquema específico do próprio
+  // cliente. Não use o esquema genérico do Expo Router aqui, pois ele retorna
+  // para `conectabarra://oauthredirect` e o Router tenta tratar isso como uma
+  // rota da aplicação, resultando em "Unmatched Route".
+  const googleRedirectUri = Platform.OS === "android"
+    ? GOOGLE_ANDROID_REDIRECT_URI
+    : makeRedirectUri({ native: GOOGLE_ANDROID_REDIRECT_URI });
   const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
