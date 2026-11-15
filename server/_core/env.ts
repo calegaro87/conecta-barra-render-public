@@ -33,7 +33,10 @@ export const ENV = {
   adminUsername: process.env.ADMIN_USERNAME?.trim() ?? "",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() ?? "",
-  googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID?.trim() ?? "",
-  googleAndroidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() ?? "",
+  // Esses identificadores OAuth são públicos e também ficam no APK. Os fallbacks
+  // evitam que um serviço Render criado manualmente fique sem Google OAuth caso
+  // o Blueprint ainda não tenha sincronizado as variáveis não secretas.
+  googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID?.trim() || "470980545863-kf726hfmdfk6mml19dnc91fdk6i3u06n.apps.googleusercontent.com",
+  googleAndroidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() || "470980545863-6588dkfremjlpl95ib1a8aespc2fcbmq.apps.googleusercontent.com",
   whatsappUrl: process.env.OFFICIAL_WHATSAPP_URL?.trim() ?? "",
 };
